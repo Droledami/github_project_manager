@@ -30,24 +30,69 @@ let database = new sqlite3.Database("./database/gestion_projet_github.db", (err)
 
 initializeDatabase();
 
-//TODO: J'étais ici
-app.get('/login', async (req, res) => {
+app.post('/login', async (req, res) => {
     try {
-        const {teacherUsername, password} = req.body;
+        const {username, password} = req.body;
         //Compare credentials with database content, returns user id
-        const teacherId = await authenticateCredentials(teacherUsername, password);
-        //get token and refresh token
-        const tokens = await addToken(teacherId);
-        //send object with token, refresh_token and userId
-        res.send({teacher_id: teacherId, ...tokens});
+        try {
+            const teacher = await authenticateCredentials(username, password);
+            const teacherId = teacher.teacherId;
+            const teacherGitToken = teacher.gitToken;
+            console.log("Teacher id : " + teacherId);
+            console.log("Teacher git token: " + teacherGitToken);
+            //get token and refresh token
+            const tokens = await addToken(teacherId);
+            //send object with token, refresh_token and userId
+            res.send({teacher_id: teacherId, ...tokens});
+        } catch (e) {
+            res.sendStatus(500);
+        }
     } catch (e) {
         console.error(e)
         res.sendStatus(500).json({userid: undefined, token: undefined, tokenRefresh: undefined});
     }
 });
 
+app.post('/me', async (req, res) => {
+    //expected body structure: {teacher_id, token, refresh_token}
+    const {teacher_id, token, refresh_token} = req.body;
+    try{
+        const isAuthorized = await authorisationCheck(teacher_id, token, refresh_token);
+        if(isAuthorized === true){
+            res.sendStatus(200);//OK
+        }else if (isAuthorized.token){
+            const tokens = isAuthorized;
+            console.log(isAuthorized);
+            res.status(201).send({teacher_id: teacher_id, ...tokens});//Ok with data renewal
+        }else{
+            res.sendStatus(401);//Unauthorized
+        }
+    }catch (e) {
+        res.sendStatus(500);//Internal server error
+    }
+});
+///Returns new tokens if they can be refreshed. Otherwise, returns true or false;
+async function authorisationCheck(teacher_id, token, refresh_token){
+    try {
+        const isAuthorized = await checkTokenValidity(teacher_id, token);
+        if (isAuthorized) {
+            return true;
+        } else {
+            const canRefresh = await checkRefreshTokenValidity(teacher_id, refresh_token);
+            if (canRefresh) {
+                const tokens = await addToken(teacher_id);
+                return tokens;
+            } else {
+                return false;
+            }
+        }
+    } catch (e) {
+        console.log("Error while trying to validate identity: request format might be unexpected");
+        throw e;
+    }
+}
+
 app.get('/projects', async (req, res) => {
-    //TODO: validate the token from req
     try {
         const projects = await getAllProjects();
         res.sendStatus(200).send(projects);
@@ -57,7 +102,6 @@ app.get('/projects', async (req, res) => {
 });
 
 app.get('/project', async (req, res) => {
-    //TODO: validate the token from req
     const projectId = req.query.id;
     try {
         const project = await getProjectWithId(projectId);
@@ -70,16 +114,34 @@ app.get('/project', async (req, res) => {
 //TODO: get project through url
 
 app.post('/project', async (req, res) => {
-    //TODO: validate the token from req
-    const projectToAdd = req.body;
+    console.log("tentative d'ajout de projet reçue:")
+    console.log(req.body);
+    const tokens = req.body.tokens;
+    const isAuthorised = await authorisationCheck(tokens.teacher_id, tokens.token, tokens.refresh_token);
+    if(!isAuthorised){
+        res.sendStatus(401);
+        return;
+    }
+    const projectToAdd = req.body.project_data;
     try {
         const url = crypto.randomBytes(16).toString('hex');
         await addProject(
-            projectToAdd.name, projectToAdd.description, projectToAdd.organization, projectToAdd.minCollaborators,
-            projectToAdd.maxCollaborators, projectToAdd.taggedGroup, url, projectToAdd.teacherId);
+            projectToAdd.name, projectToAdd.description, projectToAdd.organization, parseInt(projectToAdd.collaborators_min),
+            parseInt(projectToAdd.collaborators_max), projectToAdd.group_tag, url, parseInt(tokens.teacher_id));
         res.sendStatus(200);
     } catch (e) {
-        res.sendStatus(500).send("Error adding project");
+        console.log(e);
+        res.sendStatus(500);
+    }
+});
+
+app.put('/project', async (req, res) => {
+    const newProjectData = req.body;
+    try {
+        await editProject(newProjectData.name, newProjectData.description, newProjectData.organization, newProjectData.minCollaborators,
+            newProjectData.maxCollaborators, newProjectData.taggedGroup, newProjectData.projectId);
+    } catch (e) {
+
     }
 });
 
@@ -129,7 +191,7 @@ function getProjectWithId(projectId) {
 }
 
 function authenticateCredentials(teacherUsername, password) {
-    const sqlSelectUser = `SELECT TeacherId, PasswordHash, GitToken FROM User WHERE Username = ?`;
+    const sqlSelectUser = `SELECT TeacherId, PasswordHash, GitToken FROM Teacher WHERE Username = ?`;
     return new Promise((resolve, reject) => {
         database.get(sqlSelectUser, teacherUsername, (err, row) => {
             if (err)
@@ -167,8 +229,8 @@ function generateToken() {
     })
 }
 
-async function addProject(projectName, description, organization,
-                          minCollaborators, maxCollaborators, taggedGroup, url, teacherId) {
+function addProject(projectName, description, organization,
+                    minCollaborators, maxCollaborators, taggedGroup, url, teacherId) {
     const sqlAddProject = `INSERT INTO Project(
                             Name, Description, DateOfCreation, Organization,
                             MinCollaborators, MaxCollaborators, TaggedGroup,
@@ -181,7 +243,25 @@ async function addProject(projectName, description, organization,
                 minCollaborators, maxCollaborators, taggedGroup, url, teacherId],
             (err) => {
                 err ? reject(err)
-                    : resolve(`User ${projectName} added`);
+                    : resolve(`Project ${projectName} added`);
+            })
+    });
+}
+
+function editProject(projectName, description, organization,
+                     minCollaborators, maxCollaborators, taggedGroup, projectId) {
+    const sqlEditProject = `UPDATE Project SET
+                            Name = ?, Description = ?, Organization = ?,
+                            MinCollaborators = ?, MaxCollaborators = ?, TaggedGroup = ?,
+                            WHERE ProjectId = ?;`;
+
+    return new Promise((resolve, reject) => {
+        database.run(sqlEditProject,
+            [projectName, description, organization,
+                minCollaborators, maxCollaborators, taggedGroup, projectId],
+            (err) => {
+                err ? reject(err)
+                    : resolve(`Project ${projectName} edited`);
             })
     });
 }
@@ -189,15 +269,15 @@ async function addProject(projectName, description, organization,
 function addTeacher(teacherUsername, password, gitToken) {
     return new Promise(async (resolve, reject) => {
         const hashedPassword = await hashPassword(password);
-        const sqlInsertUser = `INSERT INTO Teacher(
+        const sqlInsertTeacher = `INSERT INTO Teacher(
                         Username, PasswordHash, GitToken
                         ) VALUES (
                         ?, ?, ?
                         );`;
-        database.run(sqlInsertUser, [teacherUsername, hashedPassword, gitToken],
+        database.run(sqlInsertTeacher, [teacherUsername, hashedPassword, gitToken],
             (err) => {
                 err ? reject(err)
-                    : resolve(`User ${teacherUsername} added`);
+                    : resolve(`Teacher ${teacherUsername} added`);
             })
     });
 }
@@ -208,8 +288,8 @@ async function addToken(teacherId) {
     const [tokenEndOfValidity, tokenEndOfRefreshValidity]
         = [tokenRequestTime + tokenDuration, tokenRequestTime + tokenRefreshDuration];
 
-    const sqlAddToken = `INSERT INTO Token(
-                        Token, EndOfValidity, RefreshToken, EndOfRefreshValidity, TeacherId 
+    const sqlAddToken = `INSERT INTO SessionToken(
+                        SessionToken, EndOfValidity, RefreshToken, EndOfRefreshValidity, TeacherId 
                         ) VALUES (
                         ?, ?, ?, ?, ?
                         );`;
@@ -224,7 +304,45 @@ async function addToken(teacherId) {
     });
 }
 
+function checkTokenValidity(teacherId, token) {
+    const sqlGetRowByTeacherIdAndToken = `SELECT * FROM SessionToken WHERE TeacherId = ? AND SessionToken = ?;`;
+
+    return new Promise((resolve, reject) => {
+        database.get(sqlGetRowByTeacherIdAndToken, [teacherId, token], (err, row) => {
+            if (err) reject(err);
+            if (row) {
+                if (row.EndOfValidity < new Date().getTime())
+                    resolve(false);
+                else
+                    resolve(true);
+            } else {
+                resolve(false);
+            }
+        });
+    });
+}
+
+function checkRefreshTokenValidity(teacherId, refreshToken) {
+    const sqlGetRowByTeacherIdAndRefreshToken = `SELECT * FROM SessionToken WHERE TeacherId = ? AND RefreshToken = ?;`;
+
+    return new Promise((resolve, reject) => {
+        database.get(sqlGetRowByTeacherIdAndRefreshToken, [teacherId, refreshToken], (err, row) => {
+            if (err) reject(err);
+            if (row) {
+                if (row.EndOfRefreshValidity < new Date().getTime())
+                    resolve(false);
+                else
+                    resolve(true);
+            } else {
+                resolve(false);
+            }
+        });
+    });
+}
+
 tryOctoRequest();
+
+//addTeacher("admin","admin", "token_for_tests");
 
 function initializeDatabase() {
     database.serialize(() => {
@@ -272,4 +390,46 @@ function initializeDatabase() {
 
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
-})
+});
+
+async function canCreateRepo(organizationName, githubToken) {
+    const octokit = new Octokit({
+        auth: githubToken,
+    });
+    try {
+        const org = await octokit.rest.orgs.get({
+            org: organizationName,
+        });
+        //vérfier s'il y a toujours de la place autorisée dans le plan pour l'ajout de repos privés.
+        return org.data.plan.private_repos > org.data.owned_private_repos;
+    } catch (error) {
+        console.error(`An error occurred: ${error}`);
+        return false;
+    }
+}
+
+async function checkIfOrganizationExists(organizationName) {
+    const octokit = new Octokit();
+    try {
+        await octokit.rest.orgs.get({
+            org: organizationName
+        });
+        return true;
+    } catch (error) {
+        if (error.status === 404) {
+            return false;
+        }
+        throw error;
+    }
+}
+
+async function getGithubUser(username) {
+    const octokit = new Octokit();
+    try {
+        return await octokit.rest.users.getByUsername({
+            username: username,
+        });
+    } catch (error) {
+        throw error;
+    }
+}

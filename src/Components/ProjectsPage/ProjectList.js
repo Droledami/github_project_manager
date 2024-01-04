@@ -1,9 +1,7 @@
-const projects = ["projet dur", "projet omg", "projet facile", "projet bordel j'en chiale du cul"];
-
-export default function ProjectList(){
+export default function ProjectList({props}){
     return(
         <div>
-            {projects.map((project) =>
+            {props.projects.map((project) =>
                 <ProjectListElement project ={project}/>
             )}
         </div>
