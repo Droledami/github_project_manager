@@ -71,7 +71,9 @@ app.post('/me', async (req, res) => {
         res.sendStatus(500);//Internal server error
     }
 });
-///Returns new tokens if they can be refreshed. Otherwise, returns true or false;
+/**
+* Returns new tokens if they can be refreshed. Otherwise, returns true if the authentication is valid or false if invalid.
+*/
 async function authorisationCheck(teacher_id, token, refresh_token){
     try {
         const isAuthorized = await checkTokenValidity(teacher_id, token);
@@ -95,9 +97,9 @@ async function authorisationCheck(teacher_id, token, refresh_token){
 app.get('/projects', async (req, res) => {
     try {
         const projects = await getAllProjects();
-        res.sendStatus(200).send(projects);
+        res.status(200).send(projects);
     } catch (e) {
-        res.send(500).send("Could not load projects");
+        res.status(500).send("Could not load projects");
     }
 });
 
@@ -111,18 +113,23 @@ app.get('/project', async (req, res) => {
     }
 });
 
-//TODO: get project through url
+//TODO: get project repository through url (for students)
 
 app.post('/project', async (req, res) => {
     console.log("tentative d'ajout de projet reçue:")
     console.log(req.body);
     const tokens = req.body.tokens;
+    const projectToAdd = req.body.project_data;
     const isAuthorised = await authorisationCheck(tokens.teacher_id, tokens.token, tokens.refresh_token);
     if(!isAuthorised){
-        res.sendStatus(401);
+        res.sendStatus(401); //Unauthorised
         return;
     }
-    const projectToAdd = req.body.project_data;
+    const organizationExists = await checkIfOrganizationExists(projectToAdd.organization);
+    if(!organizationExists){
+        res.sendStatus(406); //Not acceptable
+        return;
+    }
     try {
         const url = crypto.randomBytes(16).toString('hex');
         await addProject(
@@ -135,14 +142,41 @@ app.post('/project', async (req, res) => {
     }
 });
 
+//TODO: tester la modification de projet
 app.put('/project', async (req, res) => {
-    const newProjectData = req.body;
-    try {
-        await editProject(newProjectData.name, newProjectData.description, newProjectData.organization, newProjectData.minCollaborators,
-            newProjectData.maxCollaborators, newProjectData.taggedGroup, newProjectData.projectId);
-    } catch (e) {
-
+    console.log("tentative de modification de projet reçue:")
+    console.log(req.body);
+    const tokens = req.body.tokens;
+    const isAuthorised = await authorisationCheck(tokens.teacher_id, tokens.token, tokens.refresh_token);
+    const newProjectData = req.body.project_data;
+    if(!isAuthorised){
+        res.sendStatus(401);
+        return;
     }
+    const organizationExists = await checkIfOrganizationExists(newProjectData.organization);
+    if(!organizationExists){
+        res.sendStatus(406); //Not acceptable
+        return;
+    }
+    try {
+        await editProject(newProjectData.name, newProjectData.description, newProjectData.organization, newProjectData.collaborators_min,
+            newProjectData.collaborators_max, newProjectData.group_tag, newProjectData.project_id);
+    } catch (e) {
+        console.log(e);
+        res.sendStatus(500);
+    }
+});
+
+app.delete('/project', async (req,res)=>{
+    console.log("tentative de suppression de projet reçue:")
+    console.log(req.body);
+    const tokens = req.body.tokens;
+    const isAuthorised = await authorisationCheck(tokens.teacher_id, tokens.token, tokens.refresh_token);
+    if(!isAuthorised){
+        res.sendStatus(401);
+        return;
+    }
+    const projectIdToDelete = req.body.project_data;
 });
 
 const octokit = new Octokit({
@@ -279,6 +313,15 @@ function addTeacher(teacherUsername, password, gitToken) {
                 err ? reject(err)
                     : resolve(`Teacher ${teacherUsername} added`);
             })
+    });
+}
+
+function getTeacherGitTokenById(teacherId){
+    const sqlSelectGitTokenByTeacherId = `SELECT GitToken FROM Teacher WHERE TeacherId = ?;`;
+    return new Promise((resolve, reject)=>{
+        database.get(sqlSelectGitTokenByTeacherId, teacherId, (err, row)=>{
+            err ? reject(err) : resolve (row.GitToken);
+        });
     });
 }
 
@@ -430,6 +473,7 @@ async function getGithubUser(username) {
             username: username,
         });
     } catch (error) {
+        console.log(error);
         throw error;
     }
 }
