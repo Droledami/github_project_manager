@@ -6,12 +6,21 @@ export async function sendProjectData(projectData, projectId){
             {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(newProjectRequestObject)});
         return response.status;
     }else{ //modifier le projet
-        const newProjectRequestObject = {project_data: {...projectData, project_id : projectId}, tokens: {...JSON.parse(sessionData)}};
+        const editProjectRequestObject = {project_data: {...projectData, project_id : projectId}, tokens: {...JSON.parse(sessionData)}};
         const response = await fetch('http://localhost:8080/project',
-            {method: "PUT", headers: {"Content-Type": "application/json"}, body: JSON.stringify(newProjectRequestObject)});
+            {method: "PUT", headers: {"Content-Type": "application/json"}, body: JSON.stringify(editProjectRequestObject)});
         return response.status;
     }
 }
+
+export async function requestProjectDeletion({project}){
+    const sessionData = localStorage.getItem("token");
+    const deleteProjectRequestObject = {project_id: project.ProjectId, tokens: {...JSON.parse(sessionData)}};
+    const response = await fetch('http://localhost:8080/project',
+        {method: "DELETE", headers: {"Content-Type": "application/json"}, body: JSON.stringify(deleteProjectRequestObject)});
+    return response.status;
+}
+
 /**
  * Returns the group tag if it's verified, otherwise returns null
  */
@@ -20,4 +29,22 @@ export function validateGroupTag(groupTag){
     const regex = /.*\[X+].*/
     const [result] = groupTag.match(regex);
     return result
+}
+
+export async function getAllProjects(){
+    const response = await fetch('http://localhost:8080/projects');
+    if(response.status === 200){
+        return await response.json();
+    }else{
+        return null;
+    }
+}
+
+export async function getProjectById(projectId){
+    const response = await fetch(`http://localhost:8080/project?id=${projectId}`);
+    if(response.status === 200){
+        return await response.json();
+    }else{
+        return null;
+    }
 }

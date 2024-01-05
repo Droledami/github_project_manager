@@ -107,7 +107,7 @@ app.get('/project', async (req, res) => {
     const projectId = req.query.id;
     try {
         const project = await getProjectWithId(projectId);
-        res.sendStatus(200).send(project);
+        res.status(200).send(project);
     } catch (e) {
         res.send(500).send(`Could not load project of id ${projectId}`);
     }
@@ -142,7 +142,6 @@ app.post('/project', async (req, res) => {
     }
 });
 
-//TODO: tester la modification de projet
 app.put('/project', async (req, res) => {
     console.log("tentative de modification de projet reçue:")
     console.log(req.body);
@@ -161,6 +160,7 @@ app.put('/project', async (req, res) => {
     try {
         await editProject(newProjectData.name, newProjectData.description, newProjectData.organization, newProjectData.collaborators_min,
             newProjectData.collaborators_max, newProjectData.group_tag, newProjectData.project_id);
+        res.sendStatus(200);
     } catch (e) {
         console.log(e);
         res.sendStatus(500);
@@ -176,31 +176,39 @@ app.delete('/project', async (req,res)=>{
         res.sendStatus(401);
         return;
     }
-    const projectIdToDelete = req.body.project_data;
-});
-
-const octokit = new Octokit({
-    auth: 'token_for_tests',
-});
-
-//Example
-async function tryOctoRequest() {
+    const projectIdToDelete = req.body.project_id;
     try {
-        const result = await octokit.request("GET /repos/{owner}/{repo}", {
-            owner: "Droledami",
-            repo: "MedicTime"
-        });
-
-        console.log(`Success! Status : ${result.status}. Rate limit remaing : ${result.headers["x-ratelimit-remaining"]}`);
-
-        const titleAndAuthor = {title: result.data.name, description: result.data.description};
-
-        console.log(titleAndAuthor)
-
+        const response = await deleteProject(projectIdToDelete);
+        console.log(response);
+        res.sendStatus(200);
     } catch (e) {
-        console.log(`Error! Status: ${e.status}. Rate limit remaining: ${e.headers["x-ratelimit-remaining"]}. Message: ${e.response.data.message}`)
+        console.log(e);
+        res.sendStatus(500);
     }
-}
+});
+
+// const octokit = new Octokit({
+//     auth: 'token_for_tests',
+// });
+//
+// //Example
+// async function tryOctoRequest() {
+//     try {
+//         const result = await octokit.request("GET /repos/{owner}/{repo}", {
+//             owner: "Droledami",
+//             repo: "MedicTime"
+//         });
+//
+//         console.log(`Success! Status : ${result.status}. Rate limit remaing : ${result.headers["x-ratelimit-remaining"]}`);
+//
+//         const titleAndAuthor = {title: result.data.name, description: result.data.description};
+//
+//         console.log(titleAndAuthor)
+//
+//     } catch (e) {
+//         console.log(`Error! Status: ${e.status}. Rate limit remaining: ${e.headers["x-ratelimit-remaining"]}. Message: ${e.response.data.message}`)
+//     }
+// }
 
 function getAllProjects() {
     return new Promise((resolve, reject) => {
@@ -286,7 +294,7 @@ function editProject(projectName, description, organization,
                      minCollaborators, maxCollaborators, taggedGroup, projectId) {
     const sqlEditProject = `UPDATE Project SET
                             Name = ?, Description = ?, Organization = ?,
-                            MinCollaborators = ?, MaxCollaborators = ?, TaggedGroup = ?,
+                            MinCollaborators = ?, MaxCollaborators = ?, TaggedGroup = ?
                             WHERE ProjectId = ?;`;
 
     return new Promise((resolve, reject) => {
@@ -297,6 +305,17 @@ function editProject(projectName, description, organization,
                 err ? reject(err)
                     : resolve(`Project ${projectName} edited`);
             })
+    });
+}
+
+function deleteProject(projectId){
+    const sqlDeleteProject = `DELETE FROM Project WHERE ProjectId = ?;`;
+
+    return new Promise((resolve, reject)=>{
+        database.run(sqlDeleteProject, projectId, (err)=>{
+            if(err) reject(err);
+            resolve(`Project with id ${projectId} was deleted`);
+        });
     });
 }
 
@@ -383,7 +402,7 @@ function checkRefreshTokenValidity(teacherId, refreshToken) {
     });
 }
 
-tryOctoRequest();
+//tryOctoRequest();
 
 //addTeacher("admin","admin", "token_for_tests");
 

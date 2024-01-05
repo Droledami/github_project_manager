@@ -1,21 +1,25 @@
 import {useUser} from "../customHooks";
 import {authorisationCheck} from "../userFunctions";
-import {redirect} from "react-router";
+import {redirect, useLoaderData, useNavigate} from "react-router";
 import CreateProjectForm from "../Components/CreateProjectPage/CreateProjectForm";
-import {sendProjectData, validateGroupTag} from "../projectFunctions";
+import {getProjectById, requestProjectDeletion, sendProjectData, validateGroupTag} from "../projectFunctions";
 
-export async function loader() {
+export async function loader({params}) {
     const checkIfAuthorised = await authorisationCheck();
-    if (checkIfAuthorised)
-        return null;
-    else
+    if (checkIfAuthorised) {
+        if (params.id) {
+            const project = await getProjectById(params.id);
+            return {project}
+        } else
+            return null;
+    } else
         return redirect("/login");
 }
 
 export async function action({request, params}) {
     const formData = await request.formData();
     const projectData = Object.fromEntries(formData);
-    if(projectData.name.length < 3){
+    if (projectData.name.length < 3) {
         alert("Veuillez donner un nom au projet (au moins 3 caractères)");
         return null;
     }
@@ -31,14 +35,14 @@ export async function action({request, params}) {
         alert("Le modèle du groupe est incorrect");
         return null;
     }
-    const responseStatus = await sendProjectData(projectData, params.projectId);
+    const responseStatus = await sendProjectData(projectData, params.id);
     if (responseStatus === 200) {
         return redirect("/");
     } else if (responseStatus === 406) {
         alert("Organisation non trouvée, vérifiez le nom entré de l'organsation puis réessayez.");
         return null;
     } else {
-        alert("Une erreur est survenue lors du traitement des données, assurez vous que les champs sont tous complétés de manière correct, puis réessayez");
+        alert("Une erreur est survenue lors du traitement des données, assurez vous que les champs sont tous complétés de manière correcte, puis réessayez");
         return null;
     }
 }
@@ -46,9 +50,18 @@ export async function action({request, params}) {
 export default function CreateProjectPage() {
     const user = useUser();
 
+    const project = useLoaderData(); //!can be null.
+    const navigate = useNavigate();
+
     return (
         <>
-            <CreateProjectForm/>
+            <CreateProjectForm props = {project}/>
+            {project && <button onClick={async ()=> {
+                const status = await requestProjectDeletion(project);
+                if(status === 200){
+                    navigate("/");
+                }
+            }}>Supprimer</button>}
         </>
     );
 }
