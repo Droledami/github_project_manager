@@ -56,25 +56,26 @@ app.post('/login', async (req, res) => {
 app.post('/me', async (req, res) => {
     //expected body structure: {teacher_id, token, refresh_token}
     const {teacher_id, token, refresh_token} = req.body;
-    try{
+    try {
         const isAuthorized = await authorisationCheck(teacher_id, token, refresh_token);
-        if(isAuthorized === true){
+        if (isAuthorized === true) {
             res.sendStatus(200);//OK
-        }else if (isAuthorized.token){
+        } else if (isAuthorized.token) {
             const tokens = isAuthorized;
             console.log(isAuthorized);
             res.status(201).send({teacher_id: teacher_id, ...tokens});//Ok with data renewal
-        }else{
+        } else {
             res.sendStatus(401);//Unauthorized
         }
-    }catch (e) {
+    } catch (e) {
         res.sendStatus(500);//Internal server error
     }
 });
+
 /**
-* Returns new tokens if they can be refreshed. Otherwise, returns true if the authentication is valid or false if invalid.
-*/
-async function authorisationCheck(teacher_id, token, refresh_token){
+ * Returns new tokens if they can be refreshed. Otherwise, returns true if the authentication is valid or false if invalid.
+ */
+async function authorisationCheck(teacher_id, token, refresh_token) {
     try {
         const isAuthorized = await checkTokenValidity(teacher_id, token);
         if (isAuthorized) {
@@ -104,14 +105,36 @@ app.get('/projects', async (req, res) => {
 });
 
 app.get('/project', async (req, res) => {
-    const projectId = req.query.id;
+    const projectFetchingMethod = getProjectFetchingMethod(req.query);
+    let projectIdentifier;
     try {
-        const project = await getProjectWithId(projectId);
+        let project;
+        switch (projectFetchingMethod){
+            case "id":
+                projectIdentifier = req.query.id;
+                project = await getProjectWithId(projectIdentifier);
+                break;
+            case "url":
+                projectIdentifier = req.query.url;
+                project = await getProjectWithUrl(projectIdentifier);
+                break;
+            default:
+                throw Error("Unknown fetching method");
+        }
         res.status(200).send(project);
     } catch (e) {
-        res.send(500).send(`Could not load project of id ${projectId}`);
+        res.send(500).send(`Could not load project of ${projectFetchingMethod} ${projectIdentifier}`);
     }
 });
+
+function getProjectFetchingMethod(queryObject){
+    if(queryObject.id){
+        return "id";
+    }
+    if(queryObject.url){
+        return "url";
+    }
+}
 
 //TODO: get project repository through url (for students)
 
@@ -121,17 +144,17 @@ app.post('/project', async (req, res) => {
     const tokens = req.body.tokens;
     const projectToAdd = req.body.project_data;
     const isAuthorised = await authorisationCheck(tokens.teacher_id, tokens.token, tokens.refresh_token);
-    if(!isAuthorised){
+    if (!isAuthorised) {
         res.sendStatus(401); //Unauthorised
         return;
     }
     const organizationExists = await checkIfOrganizationExists(projectToAdd.organization);
-    if(!organizationExists){
+    if (!organizationExists) {
         res.sendStatus(406); //Not acceptable
         return;
     }
     try {
-        const url = crypto.randomBytes(16).toString('hex');
+        const url = await uniqueUrl();
         await addProject(
             projectToAdd.name, projectToAdd.description, projectToAdd.organization, parseInt(projectToAdd.collaborators_min),
             parseInt(projectToAdd.collaborators_max), projectToAdd.group_tag, url, parseInt(tokens.teacher_id));
@@ -148,12 +171,12 @@ app.put('/project', async (req, res) => {
     const tokens = req.body.tokens;
     const isAuthorised = await authorisationCheck(tokens.teacher_id, tokens.token, tokens.refresh_token);
     const newProjectData = req.body.project_data;
-    if(!isAuthorised){
+    if (!isAuthorised) {
         res.sendStatus(401);
         return;
     }
     const organizationExists = await checkIfOrganizationExists(newProjectData.organization);
-    if(!organizationExists){
+    if (!organizationExists) {
         res.sendStatus(406); //Not acceptable
         return;
     }
@@ -167,12 +190,12 @@ app.put('/project', async (req, res) => {
     }
 });
 
-app.delete('/project', async (req,res)=>{
+app.delete('/project', async (req, res) => {
     console.log("tentative de suppression de projet reçue:")
     console.log(req.body);
     const tokens = req.body.tokens;
     const isAuthorised = await authorisationCheck(tokens.teacher_id, tokens.token, tokens.refresh_token);
-    if(!isAuthorised){
+    if (!isAuthorised) {
         res.sendStatus(401);
         return;
     }
@@ -221,12 +244,23 @@ function getAllProjects() {
     });
 }
 
+function getProjectWithUrl(projectUrl) {
+    return new Promise((resolve, reject) => {
+        const sqlGetProjectWithUrl = `SELECT * FROM Project WHERE Url = ?;`;
+        database.get(sqlGetProjectWithUrl, projectUrl, (err, row) => {
+            if (err) reject(err);
+            if (!row) reject(`no rows`);
+            resolve(row);
+        })
+    });
+}
+
 function getProjectWithId(projectId) {
     return new Promise((resolve, reject) => {
         const sqlGetProjectWithId = `SELECT * FROM Project WHERE ProjectId = ?;`;
         database.get(sqlGetProjectWithId, projectId, (err, row) => {
             if (err) reject(`Error getting project with id ${projectId} from the database: ${err}`);
-            if (!row) reject(`Error getting projects from the database: no rows found for id ${projectId}`);
+            if (!row) reject(`Error getting project from the database: no rows found for id ${projectId}`);
             resolve(row);
         });
     });
@@ -308,15 +342,33 @@ function editProject(projectName, description, organization,
     });
 }
 
-function deleteProject(projectId){
+function deleteProject(projectId) {
     const sqlDeleteProject = `DELETE FROM Project WHERE ProjectId = ?;`;
 
-    return new Promise((resolve, reject)=>{
-        database.run(sqlDeleteProject, projectId, (err)=>{
-            if(err) reject(err);
+    return new Promise((resolve, reject) => {
+        database.run(sqlDeleteProject, projectId, (err) => {
+            if (err) reject(err);
             resolve(`Project with id ${projectId} was deleted`);
         });
     });
+}
+
+async function uniqueUrl() {
+    let url;
+    let urlAlreadyExists;
+    do {
+        url = crypto.randomBytes(16).toString('hex');
+        try {
+            urlAlreadyExists = await getProjectWithUrl(url);
+        } catch (e) {
+            if (e === "no rows") {
+                urlAlreadyExists = false;
+            }else{
+                throw e;
+            }
+        }
+    } while (urlAlreadyExists);
+    return url;
 }
 
 function addTeacher(teacherUsername, password, gitToken) {
@@ -335,11 +387,11 @@ function addTeacher(teacherUsername, password, gitToken) {
     });
 }
 
-function getTeacherGitTokenById(teacherId){
+function getTeacherGitTokenById(teacherId) {
     const sqlSelectGitTokenByTeacherId = `SELECT GitToken FROM Teacher WHERE TeacherId = ?;`;
-    return new Promise((resolve, reject)=>{
-        database.get(sqlSelectGitTokenByTeacherId, teacherId, (err, row)=>{
-            err ? reject(err) : resolve (row.GitToken);
+    return new Promise((resolve, reject) => {
+        database.get(sqlSelectGitTokenByTeacherId, teacherId, (err, row) => {
+            err ? reject(err) : resolve(row.GitToken);
         });
     });
 }

@@ -1,4 +1,3 @@
-import {useUser} from "../customHooks";
 import {authorisationCheck} from "../userFunctions";
 import {redirect, useLoaderData, useNavigate} from "react-router";
 import CreateProjectForm from "../Components/CreateProjectPage/CreateProjectForm";
@@ -48,7 +47,6 @@ export async function action({request, params}) {
 }
 
 export default function CreateProjectPage() {
-    const user = useUser();
 
     const project = useLoaderData(); //!can be null.
     const navigate = useNavigate();

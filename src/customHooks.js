@@ -66,7 +66,49 @@ export function UserProvider({children}){
 }
 
 export function useUser(){
-    const user = useContext(UserContext);
-    return user;
+    return useContext(UserContext);
 }
 //End of session management and useUser
+
+/**Start of definition of useMembers to add in the CreateRepositoryPage**/
+const MembersContext = createContext(null);
+
+export function MembersProvider({children}){
+    const [members, dispatch] = useReducer(membersReducer, {members_list: []});
+
+    function membersReducer(members, action){
+        switch (action){
+            case "add_member_is_clicked":
+                return [...members, action.new_member];
+            case "delete_member_is_clicked":
+                return [...members.removeItem(action.member_to_delete)];
+            default:
+                console.error("Unexpected action in membersReducer");
+                return members;
+        }
+    }
+
+    function handleAddMember(member){
+        dispatch({
+            type : "add_member_is_clicked",
+            new_member : member
+        });
+    }
+
+    function handelDeleteMember(member){
+        dispatch({
+            type : "delete_member_is_clicked",
+            member_to_delete : member
+        })
+    }
+
+    return(
+        <MembersContext.Provider value={{...members, deleteMember: handelDeleteMember, addMember: handleAddMember}}>
+            {children}
+        </MembersContext.Provider>
+    );
+}
+
+export function useMembers(){
+    return useContext(MembersContext);
+}

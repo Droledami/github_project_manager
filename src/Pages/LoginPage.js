@@ -10,8 +10,6 @@ export function loader(){
 
 export default function LoginPage(){
     return(
-      <LoginForm>
-
-      </LoginForm>
+      <LoginForm/>
     );
 }

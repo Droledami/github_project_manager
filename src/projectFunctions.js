@@ -48,3 +48,17 @@ export async function getProjectById(projectId){
         return null;
     }
 }
+
+export async function getProjectByUrl(projectUrl){
+    const response = await fetch(`http://localhost:8080/project?url=${projectUrl}`);
+    if(response.status === 200){
+        return await response.json();
+    }else{
+        return null;
+    }
+}
+
+export function copyUrlToClipboard(project){
+    const url = window.location.href;
+    navigator.clipboard.writeText(url + "repository/" + project.Url);
+}

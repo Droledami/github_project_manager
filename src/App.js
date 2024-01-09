@@ -1,35 +1,41 @@
 import {createBrowserRouter, RouterProvider} from "react-router-dom";
-import LoginPage, {loader as loginPageLoader}from "./Pages/LoginPage";
-import {UserProvider} from "./customHooks";
-import ProjectsPage, {loader as projectsPageLoader}from "./Pages/ProjectsPage";
-import CreateProjectPage, {loader as createProjectPageLoader, action as createProjectPageAction} from "./Pages/CreateProjectPage";
+import LoginPage, {loader as loginPageLoader} from "./Pages/LoginPage";
+import {MembersProvider, UserProvider} from "./customHooks";
+import ProjectsPage, {loader as projectsPageLoader} from "./Pages/ProjectsPage";
+import CreateProjectPage, {
+    loader as createProjectPageLoader,
+    action as createProjectPageAction
+} from "./Pages/CreateProjectPage";
+import CreateRepositoryPage, {loader as createRepositoryLoader} from "./Pages/CreateRepositoryPage";
 
 const router = createBrowserRouter(
     [
         {
-            path:"/login",
+            path: "/login",
             element: <LoginPage/>,
             loader: loginPageLoader
         },
         {
-            path:"/",
+            path: "/",
             element: <ProjectsPage/>,
             loader: projectsPageLoader
         },
         {
-            path:"/project/new",
+            path: "/project/new",
             element: <CreateProjectPage/>,
             loader: createProjectPageLoader,
             action: createProjectPageAction
         },
         {
-            path:"/project/:id",
+            path: "/project/:id",
             element: <CreateProjectPage/>,
             loader: createProjectPageLoader,
             action: createProjectPageAction
         },
         {
-            path:"/repo/:urlId"
+            path: "/repository/:url",
+            element: <CreateRepositoryPage/>,
+            loader: createRepositoryLoader
         },
     ]
 );
@@ -37,8 +43,10 @@ const router = createBrowserRouter(
 function App() {
     return (
         <UserProvider>
-            <RouterProvider router={router}>
-            </RouterProvider>
+            <MembersProvider>
+                <RouterProvider router={router}>
+                </RouterProvider>
+            </MembersProvider>
         </UserProvider>
     );
 }

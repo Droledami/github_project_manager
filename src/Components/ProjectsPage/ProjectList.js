@@ -1,4 +1,5 @@
 import {Link} from "react-router-dom";
+import {copyUrlToClipboard} from "../../projectFunctions";
 
 export default function ProjectList({props}) {
     return (
@@ -25,7 +26,10 @@ function ProjectListElement({project}) {
                     {project.Description === "" ? "Aucune description" : project.Description}
                 </div>
             </Link>
-            <button>URL</button>
+            <button onClick={(e) => {
+                e.stopPropagation()
+                copyUrlToClipboard(project)
+            }}>Copier l'url dans le presse-papier</button>
         </>
     );
 }
