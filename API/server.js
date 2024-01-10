@@ -109,7 +109,7 @@ app.get('/project', async (req, res) => {
     let projectIdentifier;
     try {
         let project;
-        switch (projectFetchingMethod){
+        switch (projectFetchingMethod) {
             case "id":
                 projectIdentifier = req.query.id;
                 project = await getProjectWithId(projectIdentifier);
@@ -127,11 +127,11 @@ app.get('/project', async (req, res) => {
     }
 });
 
-function getProjectFetchingMethod(queryObject){
-    if(queryObject.id){
+function getProjectFetchingMethod(queryObject) {
+    if (queryObject.id) {
         return "id";
     }
-    if(queryObject.url){
+    if (queryObject.url) {
         return "url";
     }
 }
@@ -207,6 +207,21 @@ app.delete('/project', async (req, res) => {
     } catch (e) {
         console.log(e);
         res.sendStatus(500);
+    }
+});
+
+app.get("/githubdata", async (req, res) => {
+    //format of a member to send {git_hub_username:Jodo, first_name:John, surname:Doe, avatar_url: "https://test/image/jiosef"}
+    console.log("Demande des données d'utilisateurs github");
+    console.log(req.query.username);
+
+    try {
+        const response = await getGithubUser(req.query.username);
+        const userData = response.data;
+        console.log(userData);
+        res.send({git_hub_username: userData.login, name: userData.name, avatar_url: userData.avatar_url});
+    } catch (e) {
+        res.sendStatus(404);
     }
 });
 
@@ -363,7 +378,7 @@ async function uniqueUrl() {
         } catch (e) {
             if (e === "no rows") {
                 urlAlreadyExists = false;
-            }else{
+            } else {
                 throw e;
             }
         }

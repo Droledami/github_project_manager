@@ -1,34 +1,35 @@
 import React, {createContext, useContext, useReducer} from "react";
 import {login} from "./userFunctions";
+import {getGitHubUserData} from "./repositoryFunctions";
 
 /**Start of session management and useUser**/
 const UserContext = createContext(null);
 
 const guestUser = {teacher_id: undefined, token: undefined, refresh_token: undefined}
 
-function setSession(tokens){
+function setSession(tokens) {
     console.log(tokens);
-    localStorage.setItem('token',JSON.stringify(tokens));
+    localStorage.setItem('token', JSON.stringify(tokens));
 }
 
-function getSession(){
+function getSession() {
     const sessionString = localStorage.getItem('token');
-    if(!sessionString) return guestUser;
+    if (!sessionString) return guestUser;
     const session = JSON.parse(sessionString);
     return session;
 }
 
-function clearSession(){
+function clearSession() {
     localStorage.removeItem('token');
 }
 
-export function UserProvider({children}){
+export function UserProvider({children}) {
 
     const initialUser = getSession();
     const [user, dispatch] = useReducer(userReducer, initialUser);
 
-    function userReducer(user, action){
-        switch (action.type){
+    function userReducer(user, action) {
+        switch (action.type) {
             case "user_clicks_connect":
                 setSession({...action.session_info})
                 return {...user, ...action.session_info};
@@ -40,75 +41,88 @@ export function UserProvider({children}){
         }
     }
 
-    async function handleConnectFunc(newUsernameValue, newPasswordValue){
+    async function handleConnectFunc(newUsernameValue, newPasswordValue) {
         dispatch({
-            type:"user_clicks_connect",
+            type: "user_clicks_connect",
             session_info: await login(newUsernameValue, newPasswordValue)
         })
     }
 
-    function handleDisconnectFunc(){
+    function handleDisconnectFunc() {
         dispatch({
-            type:"user_clicks_disconnect"
+            type: "user_clicks_disconnect"
         })
     }
+
     // !! The value of the context now contains the function used in the reducer for use throughout the app
     // Normally this is done by making two contexts, e.g.: UserContext which provides the state and UserDispatch
     // which provides the function that modify the state. Ref: https://react.dev/learn/scaling-up-with-reducer-and-context
-    return(
+    return (
         <UserContext.Provider value={
-            {...user,
-            connectFunction: handleConnectFunc, disconnectFunction: handleDisconnectFunc}
+            {
+                ...user,
+                connectFunction: handleConnectFunc, disconnectFunction: handleDisconnectFunc
+            }
         }>
             {children}
         </UserContext.Provider>
     );
 }
 
-export function useUser(){
+export function useUser() {
     return useContext(UserContext);
 }
+
 //End of session management and useUser
 
 /**Start of definition of useMembers to add in the CreateRepositoryPage**/
 const MembersContext = createContext(null);
 
-export function MembersProvider({children}){
+export function MembersProvider({children}) {
     const [members, dispatch] = useReducer(membersReducer, {members_list: []});
 
-    function membersReducer(members, action){
-        switch (action){
+    //format of a member in members_list: {git_hub_username:Jodo, name:John, avatar_url: https://test/image/jiosef}
+    function membersReducer(members, action) {
+        switch (action.type) {
             case "add_member_is_clicked":
-                return [...members, action.new_member];
+                if (action.new_member !== null)
+                    return {...members, members_list: [...members.members_list, action.new_member]};
+                else {
+                    alert("Could not find that GitHub user");
+                    return {...members}
+                }
             case "delete_member_is_clicked":
-                return [...members.removeItem(action.member_to_delete)];
+                return {
+                    ...members,
+                    members_list: [...members.members_list.filter(member => member.git_hub_username !== action.member_to_delete)]
+                };
             default:
                 console.error("Unexpected action in membersReducer");
                 return members;
         }
     }
 
-    function handleAddMember(member){
-        dispatch({
-            type : "add_member_is_clicked",
-            new_member : member
+    async function handleAddMember(member) {
+        await dispatch({
+            type: "add_member_is_clicked",
+            new_member: await getGitHubUserData(member)
         });
     }
 
-    function handelDeleteMember(member){
-        dispatch({
-            type : "delete_member_is_clicked",
-            member_to_delete : member
+    async function handleDeleteMember(member) {
+        await dispatch({
+            type: "delete_member_is_clicked",
+            member_to_delete: member
         })
     }
 
-    return(
-        <MembersContext.Provider value={{...members, deleteMember: handelDeleteMember, addMember: handleAddMember}}>
+    return (
+        <MembersContext.Provider value={{...members, deleteMember: handleDeleteMember, addMember: handleAddMember}}>
             {children}
         </MembersContext.Provider>
     );
 }
 
-export function useMembers(){
+export function useMembers() {
     return useContext(MembersContext);
 }

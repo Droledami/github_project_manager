@@ -4,10 +4,18 @@ import {getProjectByUrl} from "../projectFunctions";
 import GitHubUsernameEntry from "../Components/CreateRepositoryPage/GitHubUsernameEntry";
 import {useMembers} from "../customHooks";
 import GitHubUserCard from "../Components/CreateRepositoryPage/GitHubUserCard";
+import {sendRepositoryData} from "../repositoryFunctions";
 
 export async function loader({params}) {
     const project = await getProjectByUrl(params.url)
     return {project};
+}
+
+export async function action({request, params}) {
+    const formData = await request.formData();
+    const repositoryData = Object.fromEntries(formData);
+    const response = await sendRepositoryData(repositoryData, params.url);
+    //TODO: filter through responses
 }
 
 export default function CreateRepositoryPage() {
@@ -15,6 +23,7 @@ export default function CreateRepositoryPage() {
     const {project} = useLoaderData();
     const members = useMembers();
 
+    console.log(members);
     return (
         <>
             <div>
@@ -27,9 +36,11 @@ export default function CreateRepositoryPage() {
             <Form>
                 <MembersList membersList={members.members_list}/>
                 {(members.members_list.length < project.MaxCollaborators) && <GitHubUsernameEntry/>}
-                <button>
-                    Valider et créer le groupe
-                </button>
+                {(members.members_list.length >= project.MinCollaborators) &&
+                    <button type="submit" >
+                        Valider et créer le groupe
+                    </button>
+                }
             </Form>
         </>
     );
@@ -37,7 +48,6 @@ export default function CreateRepositoryPage() {
 
 function MembersList({membersList}) {
 
-    console.log(membersList);
     if (membersList.length === 0) {
         return <div>
             Aucun membre
