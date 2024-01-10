@@ -103,14 +103,14 @@ export function MembersProvider({children}) {
     }
 
     async function handleAddMember(member) {
-        await dispatch({
+        dispatch({
             type: "add_member_is_clicked",
             new_member: await getGitHubUserData(member)
         });
     }
 
     async function handleDeleteMember(member) {
-        await dispatch({
+        dispatch({
             type: "delete_member_is_clicked",
             member_to_delete: member
         })

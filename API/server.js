@@ -218,12 +218,121 @@ app.get("/githubdata", async (req, res) => {
     try {
         const response = await getGithubUser(req.query.username);
         const userData = response.data;
-        console.log(userData);
         res.send({git_hub_username: userData.login, name: userData.name, avatar_url: userData.avatar_url});
     } catch (e) {
         res.sendStatus(404);
     }
 });
+
+app.post("/repository", async (req, res) => {
+    console.log("Tentative d'ajout de repository")
+    const gitHubUsers = req.body; //array
+    const {url} = req.query;
+
+    const project = await getProjectWithUrl(url);
+    const projectCreatorGitToken = await getTeacherGitTokenById(project.TeacherId);
+
+    const fetchRepos = await getReposFromOrg(project.Organization, projectCreatorGitToken);
+    const orgRepos = fetchRepos.data;
+
+    //Create the next iteration of the repository name
+    let repositoryName;
+    try {
+        repositoryName = createRepositoryName(project.TaggedGroup, orgRepos.length + 1);
+    } catch (e) {
+        res.status(500).send({message: e});
+    }
+
+    //check if member data was not altered when sent back to this API
+    const areMembersVerified = await verifyRepositoryMembers(gitHubUsers);
+    if (!areMembersVerified) {
+        res.sendStatus(400);
+        return;
+    }
+
+    //Check if a member is not already part of a repository
+    for (const gitHubUser of gitHubUsers) {
+        console.log(`Checking if ${gitHubUser.git_hub_username} isn't already part of a repository in the organization...`);
+        const isAlreadyPartOfAGroup = await checkIfCollaboratorIsPartOfAGroup(project.Organization, orgRepos, projectCreatorGitToken, gitHubUser.git_hub_username);
+        if (isAlreadyPartOfAGroup) {
+            const message = `Error: ${gitHubUser.git_hub_username} is already part of a repository in ${project.Organization}`;
+            console.log(message);
+            res.status(400).send({error: message, duplicate_member: gitHubUser.git_hub_username});
+            return;
+        }
+    }
+
+    //Create the repository
+    let response = await createRepository(project.Organization, repositoryName, projectCreatorGitToken);
+    console.log(`Creating repository ${repositoryName}...`);
+    if (response.status !== 201) {
+        res.sendStatus(400);
+        return;
+    }
+
+    //Add the members to the repository
+    for (const gitHubUser of gitHubUsers) {
+        console.log(`Adding GitHub user ${gitHubUser.git_hub_username}...`);
+        response = await addCollaboratorToRepository(project.Organization, repositoryName, gitHubUser.git_hub_username, projectCreatorGitToken);
+        console.log(response);
+        if (response.status !== 201 && response.status !== 204) {
+            res.sendStatus(400);
+            return;
+        }
+    }
+
+    res.status(201).send({message: `Sucessfully created repository ${repositoryName}`, repository_name: repositoryName})
+});
+
+function createRepositoryName(taggedGroup, repositoryNumber) {
+    const regex = /.*\[(X+)].*/
+    const parts = taggedGroup.match(regex);
+    const numberOfX = parts[1].length;
+    const repositoryNumberOfDigits = `${repositoryNumber}`.length;
+    const numberOfZeros = numberOfX - repositoryNumberOfDigits;
+    if (numberOfZeros < 0) {
+        throw Error(`group Number overflowed. Max: ${numberOfX}`);
+    }
+    let numberStr = ""
+    for (let i = 0; i < numberOfZeros; i++) {
+        numberStr += "0";
+    }
+    numberStr += `${repositoryNumber}`;
+    return taggedGroup.replace(`[${parts[1]}]`, numberStr);
+}
+
+async function checkIfCollaboratorIsPartOfAGroup(organization, orgRepos, projectCreatorGitToken, gitHubUserToCheck) {
+    try {
+        for (const orgRepo of orgRepos) {
+            const response = await checkIfUserIsARepositoryCollaborator(orgRepo.owner.login, orgRepo.name, gitHubUserToCheck, projectCreatorGitToken);
+            if (response.status === 204) return true;
+        }
+    } catch (e) {
+        if (e.status === 404) {
+            return false;
+        }
+    }
+    return false;
+}
+
+async function verifyRepositoryMembers(gitHubUsers) {
+    console.log("Verifying members...");
+    try {
+        for (const gitHubUser of gitHubUsers) {
+            console.log(`Verifying ${gitHubUser.git_hub_username}...`)
+            await getGithubUser(gitHubUser.git_hub_username);
+        }
+        return true;
+    } catch (e) {
+        if (e.status === 404) {
+            console.log("Couldn't find member");
+            console.log("GitHub members couldn't all be verified when creating a repository");
+            return false;
+        }
+        console.log("Unexpected error")
+        console.log(e);
+    }
+}
 
 // const octokit = new Octokit({
 //     auth: 'token_for_tests',
@@ -559,7 +668,79 @@ async function getGithubUser(username) {
             username: username,
         });
     } catch (error) {
-        console.log(error);
         throw error;
+    }
+}
+
+async function getGithubOrg(organization) {
+    const octokit = new Octokit();
+    try {
+        return await octokit.rest.orgs.get({
+            org: organization
+        });
+    } catch (error) {
+        throw(error);
+    }
+}
+
+async function getReposFromOrg(organization, gitHubToken) {
+    const octokit = new Octokit({
+        auth: gitHubToken
+    });
+
+    try {
+        return await octokit.rest.repos.listForOrg(
+            {org: organization}
+        );
+    } catch (e) {
+        console.log(e);
+    }
+}
+
+async function checkIfUserIsARepositoryCollaborator(organizationName, repositoryName, gitHubUser, gitHubToken) {
+    const octokit = new Octokit({
+        auth: gitHubToken
+    });
+
+    try {
+        return await octokit.rest.repos.checkCollaborator({
+            owner: organizationName,
+            repo: repositoryName,
+            username: gitHubUser,
+        });
+    } catch (e) {
+        console.log("Error when trying to check if user " + gitHubUser + " is part of repository")
+    }
+}
+
+async function createRepository(organizationName, repositoryName, gitHubToken) {
+    const octokit = new Octokit({
+        auth: gitHubToken
+    });
+
+    try {
+        return await octokit.rest.repos.createInOrg({
+            org: organizationName,
+            name: repositoryName,
+        });
+    } catch (e) {
+        console.log(e);
+    }
+}
+
+async function addCollaboratorToRepository(organizationName, repositoryName, gitHubUserToAdd, gitHubToken) {
+    const octokit = new Octokit({
+        auth: gitHubToken
+    });
+
+    try {
+        return await octokit.rest.repos.addCollaborator({
+            owner: organizationName,
+            repo: repositoryName,
+            username: gitHubUserToAdd,
+            permission: "maintain"
+        });
+    } catch (e) {
+        console.log(e);
     }
 }

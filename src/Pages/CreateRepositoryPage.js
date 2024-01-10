@@ -1,5 +1,4 @@
-import {useLoaderData, useParams} from "react-router";
-import {Form} from "react-router-dom";
+import {useLoaderData, useNavigate, useParams} from "react-router";
 import {getProjectByUrl} from "../projectFunctions";
 import GitHubUsernameEntry from "../Components/CreateRepositoryPage/GitHubUsernameEntry";
 import {useMembers} from "../customHooks";
@@ -11,17 +10,11 @@ export async function loader({params}) {
     return {project};
 }
 
-export async function action({request, params}) {
-    const formData = await request.formData();
-    const repositoryData = Object.fromEntries(formData);
-    const response = await sendRepositoryData(repositoryData, params.url);
-    //TODO: filter through responses
-}
-
 export default function CreateRepositoryPage() {
     const {url} = useParams();
     const {project} = useLoaderData();
     const members = useMembers();
+    const navigate = useNavigate();
 
     console.log(members);
     return (
@@ -33,15 +26,17 @@ export default function CreateRepositoryPage() {
                 Collaborateurs minimum : {project.MinCollaborators} <br/>
                 Collaborateurs maximum : {project.MaxCollaborators}
             </div>
-            <Form>
+            <div>
                 <MembersList membersList={members.members_list}/>
                 {(members.members_list.length < project.MaxCollaborators) && <GitHubUsernameEntry/>}
                 {(members.members_list.length >= project.MinCollaborators) &&
-                    <button type="submit" >
+                    <button type="submit" onClick={async () => {
+                        const response = await sendRepositoryData(members.members_list, url);
+                    }}>
                         Valider et créer le groupe
                     </button>
                 }
-            </Form>
+            </div>
         </>
     );
 }

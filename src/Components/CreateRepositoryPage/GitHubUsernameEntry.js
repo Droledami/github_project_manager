@@ -10,7 +10,7 @@ export default function GitHubUsernameEntry() {
         <div>
             <input type="text" placeholder="Ajouter un membre" name={`username_${members.members_list.length}`}
                    value={username} onChange={(e)=> setUsername(e.currentTarget.value)}/>
-            <button onClick={async () => {
+            <button type="button" onClick={async () => {
                 await members.addMember(username);
                 setUsername("");
             }}>+

@@ -6,7 +6,9 @@ import CreateProjectPage, {
     loader as createProjectPageLoader,
     action as createProjectPageAction
 } from "./Pages/CreateProjectPage";
-import CreateRepositoryPage, {loader as createRepositoryLoader} from "./Pages/CreateRepositoryPage";
+import CreateRepositoryPage, {
+    loader as createRepositoryLoader,
+} from "./Pages/CreateRepositoryPage";
 
 const router = createBrowserRouter(
     [
@@ -35,7 +37,7 @@ const router = createBrowserRouter(
         {
             path: "/repository/:url",
             element: <CreateRepositoryPage/>,
-            loader: createRepositoryLoader
+            loader: createRepositoryLoader,
         },
     ]
 );
