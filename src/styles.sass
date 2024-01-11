@@ -1,0 +1,90 @@
+@use "./base"
+@use "./colors"
+
+@mixin center-div
+  margin: 0 auto
+  width: fit-content
+
+%base-button
+  border: 1px solid colors.$color-onTertiary
+  padding: 5px
+  background: colors.$color-onTertiary
+  color: colors.$color-tertiary
+  width: fit-content
+  height: 30px
+  box-shadow: 3px 3px 0 colors.$color-tertiary
+  border-radius: 15px
+  margin: 5px
+  &:active
+    box-shadow: none
+    translate: 3px 3px
+  &:hover
+    cursor: pointer
+
+button
+  @extend %base-button
+
+.project-list
+  @include center-div
+  margin-top: 2.5%
+  padding: 0.5% 5% .5% 5%
+  border: colors.$color-primary 3px solid
+  border-radius: 15px
+  width: 500px
+  height: 100%
+
+.title
+  @include center-div
+  font-family: "Segoe UI Black", sans-serif
+
+.new-button
+  @extend %base-button
+  position: fixed
+  bottom: 5%
+  right: 5%
+  font-size: 24px
+  font-family: "Arial", serif
+  height: fit-content
+  margin: 20px
+  box-shadow: 5px 5px 0 colors.$color-tertiary
+
+div.project-area-row
+  background-color: colors.$color-primary
+  display: flex
+  flex-direction: row
+  margin: 0 0 2% 0
+  padding: 10px
+  border-radius: 15px
+  &:last-child
+    margin: 0
+
+div.project-area-col
+  flex: 4
+  display: flex
+  flex-direction: column
+
+div.project-header
+  display: flex
+  flex-direction: row
+
+div.project-title
+  flex: 3
+  font-weight: bold
+  font-family: "Algerian", sans-serif
+  color: colors.$color-onPrimary
+
+div.project-date
+  flex: 1
+  text-align: right
+  color: colors.$color-onPrimary
+
+div.project-description
+  flex: 6
+  text-align: left
+  padding: 1.5% 0 0 5%
+  font-style: italic
+  font-size: 14px
+  color: colors.$color-onPrimary
+
+button.copy-url
+  flex: 1

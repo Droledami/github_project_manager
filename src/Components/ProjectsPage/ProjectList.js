@@ -3,11 +3,16 @@ import {copyUrlToClipboard} from "../../projectFunctions";
 
 export default function ProjectList({props}) {
     return (
-        <div>
-            {props.projects.map((project) =>
-                <ProjectListElement project={project}/>
-            )}
-        </div>
+        <>
+            <h1 className="title">
+                Liste des projets
+            </h1>
+            <div className="project-list">
+                {props.projects.map((project) =>
+                    <ProjectListElement project={project}/>
+                )}
+            </div>
+        </>
     );
 }
 
@@ -15,21 +20,28 @@ function ProjectListElement({project}) {
     console.log(project);
     return (
         <>
-            <Link to={`project/${project.ProjectId}`}>
-                <div>
-                    {project.Name}
+            <div className="project-area-row">
+                <div className="project-area-col">
+                    <Link to={`project/${project.ProjectId}`} style={{textDecoration:"none"}}>
+                        <div className="project-header">
+                            <div className="project-title">
+                                {project.Name}
+                            </div>
+                            <div className="project-date">
+                                {dateToString(new Date(parseInt(project.DateOfCreation)))}
+                            </div>
+                        </div>
+                        <div className="project-description">
+                            {project.Description === "" ? "Aucune description" : project.Description}
+                        </div>
+                    </Link>
                 </div>
-                <div>
-                    Créé le {dateToString(new Date(parseInt(project.DateOfCreation)))}
-                </div>
-                <div>
-                    {project.Description === "" ? "Aucune description" : project.Description}
-                </div>
-            </Link>
-            <button onClick={(e) => {
-                e.stopPropagation()
-                copyUrlToClipboard(project)
-            }}>Copier l'url dans le presse-papier</button>
+                <button className="copy-url" onClick={(e) => {
+                    e.stopPropagation()
+                    copyUrlToClipboard(project)
+                }}>Copier l'url
+                </button>
+            </div>
         </>
     );
 }
@@ -37,9 +49,8 @@ function ProjectListElement({project}) {
 function dateToString(date) {
     const locale = "fr-FR";
     const options = {
-        weekday: "long",
         year: "numeric",
-        month: "long",
+        month: "numeric",
         day: "numeric"
     }
     return (date.toLocaleDateString(locale, options));

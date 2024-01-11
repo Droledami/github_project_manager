@@ -1,7 +1,6 @@
-import {redirect, useLoaderData} from "react-router";
+import {redirect, useLoaderData, useNavigate} from "react-router";
 import {authorisationCheck} from "../userFunctions";
 import ProjectList from "../Components/ProjectsPage/ProjectList";
-import {Link} from "react-router-dom";
 import {getAllProjects} from "../projectFunctions";
 
 export async function loader() {
@@ -17,11 +16,12 @@ export async function loader() {
 export default function ProjectsPage() {
 
     const {projects} = useLoaderData();
+    const navigate = useNavigate();
 
     return (
         <>
             <ProjectList props={{projects}}/>
-            <Link to="/project/new">Nouveau</Link>
+            <button className="new-button" onClick={()=> navigate("/project/new")}>Nouveau <br/>Projet</button>
         </>
     );
 }
