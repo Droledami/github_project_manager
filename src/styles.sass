@@ -24,7 +24,7 @@
 button
   @extend %base-button
 
-.project-list
+.centered-list
   @include center-div
   margin-top: 2.5%
   padding: 0.5% 5% .5% 5%
@@ -68,13 +68,14 @@ div.project-header
   flex-direction: row
 
 div.project-title
-  flex: 3
+  flex: 4
   font-weight: bold
   font-family: "Algerian", sans-serif
   color: colors.$color-onPrimary
 
 div.project-date
   flex: 1
+  font-size: 12px
   text-align: right
   color: colors.$color-onPrimary
 
@@ -88,3 +89,50 @@ div.project-description
 
 button.copy-url
   flex: 1
+
+div.input-row
+  display: flex
+  flex-direction: row
+  margin: .5%
+
+input
+  flex: 1
+  display: block
+  margin: 0.5%
+  width: 100%
+
+textarea
+  display: block
+  margin: .5%
+  width: 100%
+
+p.tooltip
+  font-size: 10px
+  padding: 0 0 0 2%
+
+p.input-label
+  margin: 0 .5%
+  font-size: 14px
+  padding: 0
+  width: 100%
+
+div.form-buttons
+  align-content: center
+  display: flex
+  flex-direction: row
+
+@mixin form-button
+  flex: 1
+  width: fit-content
+
+button.send-data
+  @include form-button
+  background-color: green
+  box-shadow: 3px 3px 0 darkgreen
+  border: 1px solid darkgreen
+
+button.delete
+  @include form-button
+  background-color: indianred
+  box-shadow: 3px 3px 0 darkred
+  border: 1px solid darkred

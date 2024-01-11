@@ -10,7 +10,7 @@ export async function loader({params}) {
             const project = await getProjectById(params.id);
             return {project}
         } else
-            return null;
+            return {project: null};
     } else
         return redirect("/login");
 }
@@ -48,18 +48,14 @@ export async function action({request, params}) {
 
 export default function CreateProjectPage() {
 
-    const project = useLoaderData(); //!can be null.
-    const navigate = useNavigate();
+    const {project} = useLoaderData(); //!can be null.
 
     return (
         <>
-            <CreateProjectForm props = {project}/>
-            {project && <button onClick={async ()=> {
-                const status = await requestProjectDeletion(project);
-                if(status === 200){
-                    navigate("/");
-                }
-            }}>Supprimer</button>}
+            <h1 className="title">
+                {project === null ? "Nouveau projet" : `Modifier le projet ${project.Name}`}
+            </h1>
+            <CreateProjectForm project={project}/>
         </>
     );
 }

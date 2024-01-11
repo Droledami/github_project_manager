@@ -7,7 +7,7 @@ export default function ProjectList({props}) {
             <h1 className="title">
                 Liste des projets
             </h1>
-            <div className="project-list">
+            <div className="centered-list">
                 {props.projects.map((project) =>
                     <ProjectListElement project={project}/>
                 )}
