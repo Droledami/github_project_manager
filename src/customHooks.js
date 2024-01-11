@@ -15,8 +15,7 @@ function setSession(tokens) {
 function getSession() {
     const sessionString = localStorage.getItem('token');
     if (!sessionString) return guestUser;
-    const session = JSON.parse(sessionString);
-    return session;
+    return JSON.parse(sessionString);
 }
 
 function clearSession() {
@@ -85,11 +84,16 @@ export function MembersProvider({children}) {
     function membersReducer(members, action) {
         switch (action.type) {
             case "add_member_is_clicked":
-                if (action.new_member !== null)
+                if (action.new_member !== null){
+                    if(members.members_list.find(member=> member.git_hub_username === action.new_member.git_hub_username)){
+                        alert("Cet utilisateur a déjà été ajouté.");
+                        return {...members};
+                    }
                     return {...members, members_list: [...members.members_list, action.new_member]};
+                }
                 else {
-                    alert("Could not find that GitHub user");
-                    return {...members}
+                    alert("Utilisateur GitHub introuvable...");
+                    return {...members};
                 }
             case "delete_member_is_clicked":
                 return {

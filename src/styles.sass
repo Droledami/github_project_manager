@@ -5,14 +5,17 @@
   margin: 0 auto
   width: fit-content
 
+@mixin basic-shadow($shadow-color)
+  box-shadow: 3px 3px 5px $shadow-color
+
 %base-button
-  border: 1px solid colors.$color-onTertiary
+  border: 1px solid colors.$on-primary-tone-3
   padding: 5px
-  background: colors.$color-onTertiary
-  color: colors.$color-tertiary
+  background: colors.$on-primary-tone-3
+  color: colors.$primary-tone-3
   width: fit-content
   height: 30px
-  box-shadow: 3px 3px 0 colors.$color-tertiary
+  box-shadow: 3px 3px 0 colors.$primary-tone-3
   border-radius: 15px
   margin: 5px
   &:active
@@ -28,17 +31,22 @@ button
   @include center-div
   margin-top: 2.5%
   padding: 0.5% 5% .5% 5%
-  border: colors.$color-primary 3px solid
+  border: colors.$on-primary-tone-3 4px solid
   border-radius: 15px
   width: 500px
   height: 100%
+  box-shadow: 15px 15px 20px black
+  background-color: colors.$primary-tone-1
 
 .title
   @include center-div
   font-family: "Segoe UI Black", sans-serif
+  color: colors.$on-primary-tone-3
 
 .new-button
   @extend %base-button
+  border: 2px solid colors.$on-primary-tone-2
+  background-color: colors.$primary-tone-1
   position: fixed
   bottom: 5%
   right: 5%
@@ -46,10 +54,12 @@ button
   font-family: "Arial", serif
   height: fit-content
   margin: 20px
-  box-shadow: 5px 5px 0 colors.$color-tertiary
+  box-shadow: 5px 5px 0 black
 
 div.project-area-row
-  background-color: colors.$color-primary
+  @include basic-shadow(colors.$shadow)
+  background-color: colors.$primary-tone-2
+  border: 2px solid colors.$on-primary-tone-2
   display: flex
   flex-direction: row
   margin: 0 0 2% 0
@@ -71,13 +81,15 @@ div.project-title
   flex: 4
   font-weight: bold
   font-family: "Algerian", sans-serif
-  color: colors.$color-onPrimary
+  color: colors.$on-primary-tone-1
+  font-size: 24px
+  padding-top: 2%
 
 div.project-date
   flex: 1
   font-size: 12px
   text-align: right
-  color: colors.$color-onPrimary
+  color: colors.$on-primary-tone-2
 
 div.project-description
   flex: 6
@@ -85,10 +97,11 @@ div.project-description
   padding: 1.5% 0 0 5%
   font-style: italic
   font-size: 14px
-  color: colors.$color-onPrimary
+  color: colors.$on-primary-tone-2
 
 button.copy-url
   flex: 1
+  background-color: colors.$primary-tone-1
 
 div.input-row
   display: flex
@@ -108,6 +121,7 @@ textarea
 
 p.tooltip
   font-size: 10px
+  margin: 0
   padding: 0 0 0 2%
 
 p.input-label
@@ -125,14 +139,75 @@ div.form-buttons
   flex: 1
   width: fit-content
 
-button.send-data
+button.positive
   @include form-button
-  background-color: green
-  box-shadow: 3px 3px 0 darkgreen
-  border: 1px solid darkgreen
+  background-color: colors.$positive
+  box-shadow: 3px 3px 0 colors.$positive-dark
+  border: 1px solid colors.$positive-dark
 
-button.delete
+button.negative
   @include form-button
-  background-color: indianred
-  box-shadow: 3px 3px 0 darkred
-  border: 1px solid darkred
+  background-color: colors.$negative
+  box-shadow: 3px 3px 0 colors.$negative-dark
+  border: 1px solid colors.$negative-dark
+
+div.username-input
+  display: flex
+  flex-direction: row
+
+input.group-member
+  flex: 9
+  width: 100%
+  border-radius: 10px
+
+div.card
+  @include basic-shadow(colors.$shadow)
+  display: flex
+  flex-direction: column
+  background-color: colors.$primary-tone-2
+  border-radius: 15px
+  margin: 2% auto
+  padding: 1.5% 3%
+  > .card-header
+    display: flex
+    flex-direction: row
+    *
+      &:nth-child(1)
+        flex: 1 auto
+        font-weight: bold
+      &:nth-child(2)
+        flex: 20 auto
+        font-style: italic
+      &:nth-child(3)
+        flex: 1
+        margin-right: 2%
+  > .card-body
+    display: flex
+    flex-direction: row
+    justify-content: left
+    background-color: colors.$primary-tone-1
+    border-radius: 15px
+    img
+      margin: 1% 0 2.5% 1%
+      min-width: 100px
+      border-radius: 50%
+      border: 3px solid colors.$on-primary-tone-1
+      box-shadow: 3px 3px 5px colors.$primary-tone-3
+    p
+      margin: 2%
+
+div.members-list
+  padding: 5% 0 0 0
+
+div.feedback-form
+  position: fixed
+  background-color: colors.$primary-tone-1
+  height: 70%
+  width: 50%
+  left: 25%
+  top: 10%
+  border-radius: 25px
+  text-align: center
+
+div.create-group
+  text-align: center

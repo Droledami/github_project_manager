@@ -45,13 +45,13 @@ export default function CreateProjectForm({project}) {
                 <p className="tooltip">Doit inclure au moins un X majuscule entre crochets []. Les X et leurs crochets
                     seront remplacés par les itérations des numéros de groupe</p>
                 <div className="form-buttons">
-                    {project && <button className="delete" onClick={async ()=> {
-                        const status = await requestProjectDeletion(project);
+                    {project && <button className="negative" onClick={async ()=> {
+                        const status = await requestProjectDeletion({project});
                         if(status === 200){
                             navigate("/");
                         }
                     }}>Supprimer</button>}
-                    <button className="send-data" type="submit">
+                    <button className="positive" type="submit">
                         {project === null ? "Créer" : "Appliquer"}
                     </button>
                 </div>

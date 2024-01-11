@@ -1,34 +1,23 @@
 const express = require("express");
-const sqlite3 = require("sqlite3").verbose();
-const cors = require("cors");
 const {Octokit} = require("octokit");
+const cors = require("cors");
+const sqlite3 = require("sqlite3").verbose();
 const bodyParser = require("body-parser");
-const crypto = require('crypto');
-const bcrypt = require('bcrypt');
+const bcrypt = require("bcrypt");
+const crypto = require("crypto");
 
 const saltRounds = 10;
-
 const PORT = 8080;
+
+const tokenDuration = 30 * 60000; //30 minutes
+const tokenRefreshDuration = tokenDuration * 2;
+const tokenSize = 48;
 
 const app = express();
 
 app.use(cors());
 app.use(express.static("../build"));
 app.use(bodyParser.json());
-
-const tokenDuration = 30 * 60000; //30 minutes
-const tokenRefreshDuration = tokenDuration * 2;
-const tokenSize = 48;
-
-let database = new sqlite3.Database("./database/gestion_projet_github.db", (err) => {
-    if (err) {
-        console.log(`Error opening database: ${err}`);
-    } else {
-        console.log("Database opened");
-    }
-});
-
-initializeDatabase();
 
 app.post('/login', async (req, res) => {
     try {
@@ -37,9 +26,6 @@ app.post('/login', async (req, res) => {
         try {
             const teacher = await authenticateCredentials(username, password);
             const teacherId = teacher.teacherId;
-            const teacherGitToken = teacher.gitToken;
-            console.log("Teacher id : " + teacherId);
-            console.log("Teacher git token: " + teacherGitToken);
             //get token and refresh token
             const tokens = await addToken(teacherId);
             //send object with token, refresh_token and userId
@@ -83,8 +69,7 @@ async function authorisationCheck(teacher_id, token, refresh_token) {
         } else {
             const canRefresh = await checkRefreshTokenValidity(teacher_id, refresh_token);
             if (canRefresh) {
-                const tokens = await addToken(teacher_id);
-                return tokens;
+                return await addToken(teacher_id);
             } else {
                 return false;
             }
@@ -135,8 +120,6 @@ function getProjectFetchingMethod(queryObject) {
         return "url";
     }
 }
-
-//TODO: get project repository through url (for students)
 
 app.post('/project', async (req, res) => {
     console.log("tentative d'ajout de projet reçue:")
@@ -218,7 +201,13 @@ app.get("/githubdata", async (req, res) => {
     try {
         const response = await getGithubUser(req.query.username);
         const userData = response.data;
-        res.send({git_hub_username: userData.login, name: userData.name, avatar_url: userData.avatar_url});
+        console.log(userData);
+        res.send({
+            git_hub_username: userData.login,
+            name: userData.name,
+            avatar_url: userData.avatar_url,
+            bio: userData.bio
+        });
     } catch (e) {
         res.sendStatus(404);
     }
@@ -235,29 +224,43 @@ app.post("/repository", async (req, res) => {
     const fetchRepos = await getReposFromOrg(project.Organization, projectCreatorGitToken);
     const orgRepos = fetchRepos.data;
 
+    //Check if there is still room for another repository in the user's plan
+    let canCreate
+    try {
+        console.log("Checking if plan still allows repository creation...");
+        canCreate = await canCreateRepo(project.Organization, projectCreatorGitToken);
+    } catch (e) {
+        res.status(500).send({error: e});
+        return;
+    }
+    if (!canCreate) {
+        res.status(403).send({error: "Organization plan doesn't allow any more repositories"}); //Forbidden
+        return;
+    }
+
     //Create the next iteration of the repository name
     let repositoryName;
     try {
         repositoryName = createRepositoryName(project.TaggedGroup, orgRepos.length + 1);
     } catch (e) {
-        res.status(500).send({message: e});
+        res.status(500).send({error: e});
     }
 
     //check if member data was not altered when sent back to this API
     const areMembersVerified = await verifyRepositoryMembers(gitHubUsers);
     if (!areMembersVerified) {
-        res.sendStatus(400);
+        res.status(400).send({reason: "unverified", error: "Members' identity was altered."});
         return;
     }
 
-    //Check if a member is not already part of a repository
+    //Check if a member is not already part of another repository in the organization
     for (const gitHubUser of gitHubUsers) {
         console.log(`Checking if ${gitHubUser.git_hub_username} isn't already part of a repository in the organization...`);
         const isAlreadyPartOfAGroup = await checkIfCollaboratorIsPartOfAGroup(project.Organization, orgRepos, projectCreatorGitToken, gitHubUser.git_hub_username);
         if (isAlreadyPartOfAGroup) {
-            const message = `Error: ${gitHubUser.git_hub_username} is already part of a repository in ${project.Organization}`;
+            const message = `Erreur: ${gitHubUser.git_hub_username} fait déjà partie d'un groupe dans l'organisation ${project.Organization}`;
             console.log(message);
-            res.status(400).send({error: message, duplicate_member: gitHubUser.git_hub_username});
+            res.status(400).send({reason: "duplicate", error: message, duplicate_member: gitHubUser.git_hub_username});
             return;
         }
     }
@@ -266,17 +269,22 @@ app.post("/repository", async (req, res) => {
     let response = await createRepository(project.Organization, repositoryName, projectCreatorGitToken);
     console.log(`Creating repository ${repositoryName}...`);
     if (response.status !== 201) {
-        res.sendStatus(400);
+        res.status(400).send({
+            reason: "repository_creation_failed",
+            error: `La création du repository ${repositoryName} a échoué.`
+        });
         return;
     }
 
-    //Add the members to the repository
+    //Add the members to the repository (role is "maintain" by default)
     for (const gitHubUser of gitHubUsers) {
         console.log(`Adding GitHub user ${gitHubUser.git_hub_username}...`);
         response = await addCollaboratorToRepository(project.Organization, repositoryName, gitHubUser.git_hub_username, projectCreatorGitToken);
-        console.log(response);
         if (response.status !== 201 && response.status !== 204) {
-            res.sendStatus(400);
+            res.status(400).send({
+                reason: "member_not_added",
+                error: `La création du repository ${repositoryName} a été effectuée mais au moins un membre n'a pas pu être ajouté. Contactez votre professeur.`
+            });
             return;
         }
     }
@@ -334,28 +342,14 @@ async function verifyRepositoryMembers(gitHubUsers) {
     }
 }
 
-// const octokit = new Octokit({
-//     auth: 'token_for_tests',
-// });
-//
-// //Example
-// async function tryOctoRequest() {
-//     try {
-//         const result = await octokit.request("GET /repos/{owner}/{repo}", {
-//             owner: "Droledami",
-//             repo: "MedicTime"
-//         });
-//
-//         console.log(`Success! Status : ${result.status}. Rate limit remaing : ${result.headers["x-ratelimit-remaining"]}`);
-//
-//         const titleAndAuthor = {title: result.data.name, description: result.data.description};
-//
-//         console.log(titleAndAuthor)
-//
-//     } catch (e) {
-//         console.log(`Error! Status: ${e.status}. Rate limit remaining: ${e.headers["x-ratelimit-remaining"]}. Message: ${e.response.data.message}`)
-//     }
-// }
+//DATABASE
+let database = new sqlite3.Database("./database/gestion_projet_github.db", (err) => {
+    if (err) {
+        console.log(`Error opening database: ${err}`);
+    } else {
+        console.log("Database opened");
+    }
+});
 
 function getAllProjects() {
     return new Promise((resolve, reject) => {
@@ -412,23 +406,6 @@ function authenticateCredentials(teacherUsername, password) {
     })
 }
 
-function hashPassword(password) {
-    return new Promise((resolve, reject) => {
-        bcrypt.hash(password, saltRounds, (err, hash) => {
-            err ? reject(err)
-                : resolve(hash);
-        })
-    });
-}
-
-function generateToken() {
-    return new Promise((resolve, reject) => {
-        crypto.randomBytes(tokenSize, (err, buf) => {
-            err ? reject(err) : resolve(buf.toString('hex'));
-        })
-    })
-}
-
 function addProject(projectName, description, organization,
                     minCollaborators, maxCollaborators, taggedGroup, url, teacherId) {
     const sqlAddProject = `INSERT INTO Project(
@@ -477,33 +454,25 @@ function deleteProject(projectId) {
     });
 }
 
-async function uniqueUrl() {
-    let url;
-    let urlAlreadyExists;
-    do {
-        url = crypto.randomBytes(16).toString('hex');
-        try {
-            urlAlreadyExists = await getProjectWithUrl(url);
-        } catch (e) {
-            if (e === "no rows") {
-                urlAlreadyExists = false;
-            } else {
-                throw e;
-            }
-        }
-    } while (urlAlreadyExists);
-    return url;
-}
-
-function addTeacher(teacherUsername, password, gitToken) {
+function addTeacher(teacherUsername, password, gitToken, teacherFirstName, teacherSurname) {
     return new Promise(async (resolve, reject) => {
+        if (!teacherUsername || !password || !gitToken) {
+            const message = "Invalid teacher data, please provide at least a username, password and git token";
+            console.log(message);
+            reject(message);
+        }
+        if (!gitToken.startsWith("ghp_")) {
+            const message = `${gitToken} does not look like a GitHub token.`;
+            console.log(message);
+            reject(message);
+        }
         const hashedPassword = await hashPassword(password);
         const sqlInsertTeacher = `INSERT INTO Teacher(
-                        Username, PasswordHash, GitToken
+                        Username, PasswordHash, GitToken, Name, Surname
                         ) VALUES (
-                        ?, ?, ?
+                        ?, ?, ?, ?, ?
                         );`;
-        database.run(sqlInsertTeacher, [teacherUsername, hashedPassword, gitToken],
+        database.run(sqlInsertTeacher, [teacherUsername, hashedPassword, gitToken, teacherFirstName, teacherSurname],
             (err) => {
                 err ? reject(err)
                     : resolve(`Teacher ${teacherUsername} added`);
@@ -588,9 +557,9 @@ function initializeDatabase() {
             TeacherId INTEGER PRIMARY KEY AUTOINCREMENT,
             Name TEXT,
             Surname TEXT,
-            Username TEXT NOT NULL,
+            Username TEXT NOT NULL UNIQUE,
             PasswordHash TEXT NOT NULL,
-            GitToken TEXT NOT NULL
+            GitToken TEXT NOT NULL UNIQUE
             );`;
         const sqlCreateTableToken = `CREATE TABLE IF NOT EXISTS SessionToken (
             TokenId INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -620,16 +589,14 @@ function initializeDatabase() {
         sqlOrders.forEach((sqlOrder, count) => {
             count++
             database.run(sqlOrder, (err) => {
-                err ? console.log(`Error occurred: ${err.message}`) : console.log(`Successfully exced sql order n° ${count}`);
+                err ? console.log(`Error occurred: ${err.message}`) : console.log(`Successfully exced sql order ${sqlOrder.substring(0, 40)}...`);
             });
         });
     });
 }
 
-app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
-});
 
+//GITHUB API
 async function canCreateRepo(organizationName, githubToken) {
     const octokit = new Octokit({
         auth: githubToken,
@@ -669,17 +636,6 @@ async function getGithubUser(username) {
         });
     } catch (error) {
         throw error;
-    }
-}
-
-async function getGithubOrg(organization) {
-    const octokit = new Octokit();
-    try {
-        return await octokit.rest.orgs.get({
-            org: organization
-        });
-    } catch (error) {
-        throw(error);
     }
 }
 
@@ -744,3 +700,56 @@ async function addCollaboratorToRepository(organizationName, repositoryName, git
         console.log(e);
     }
 }
+
+//CRYPTO
+function hashPassword(password) {
+    return new Promise((resolve, reject) => {
+        bcrypt.hash(password, saltRounds, (err, hash) => {
+            err ? reject(err)
+                : resolve(hash);
+        })
+    });
+}
+
+function generateToken() {
+    return new Promise((resolve, reject) => {
+        crypto.randomBytes(tokenSize, (err, buf) => {
+            err ? reject(err) : resolve(buf.toString('hex'));
+        })
+    })
+}
+
+async function uniqueUrl() {
+    let url;
+    let urlAlreadyExists;
+    do {
+        url = crypto.randomBytes(16).toString('hex');
+        try {
+            urlAlreadyExists = await getProjectWithUrl(url);
+        } catch (e) {
+            if (e === "no rows") {
+                urlAlreadyExists = false;
+            } else {
+                throw e;
+            }
+        }
+    } while (urlAlreadyExists);
+    return url;
+}
+
+initializeDatabase();
+
+//Ajouter un professeur : remplacer les entrées ci dessous avec, respectivement :
+//    le nom d'utilisateur à utiliser sur le site
+//    le mot de passe à utiliser sur le site
+//    le token GitHub à associer à cet utilisateur (à générer sur le site de GitHub).
+//Données facultatives à ajouter à la fin:
+//    le prénom du professeur.
+//    le nom de famille du professeur.
+// addTeacher("TeacherTest", "mot de passe", "git-token", null, null).then((resolve)=>{
+//      console.log(resolve);
+//  }, (reject)=> console.log(`Error: ${reject}`));
+
+app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+});

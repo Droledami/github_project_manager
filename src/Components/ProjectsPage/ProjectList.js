@@ -7,11 +7,14 @@ export default function ProjectList({props}) {
             <h1 className="title">
                 Liste des projets
             </h1>
-            <div className="centered-list">
+            {props.projects && <div className="centered-list">
                 {props.projects.map((project) =>
                     <ProjectListElement project={project}/>
                 )}
-            </div>
+            </div>}
+            {!props.projects && <div className="centered-list">
+                Aucun projet...
+            </div>}
         </>
     );
 }

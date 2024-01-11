@@ -7,10 +7,10 @@ export default function GitHubUsernameEntry() {
     const [username, setUsername] = useState("");
 
     return (
-        <div>
-            <input type="text" placeholder="Ajouter un membre" name={`username_${members.members_list.length}`}
+        <div className="username-input">
+            <input className="group-member" type="text" placeholder="Ajouter un membre" name={`username_${members.members_list.length}`}
                    value={username} onChange={(e)=> setUsername(e.currentTarget.value)}/>
-            <button type="button" onClick={async () => {
+            <button className="positive" type="button" onClick={async () => {
                 await members.addMember(username);
                 setUsername("");
             }}>+

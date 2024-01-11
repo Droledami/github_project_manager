@@ -11,10 +11,12 @@ export default function LoginForm() {
 
     return (
         <Form>
+            <p className="input-label">Nom d'utilisateur</p>
             <input type="text" name="username" value={inputUsername}
                    onChange={(e)=> {setInputUsername(e.target.value) }
             }/>
-            <input type="text" name="password" value={inputPassword}
+            <p className="input-label">Mot de passe</p>
+            <input type="password" name="password" value={inputPassword}
                    onChange={(e)=> {setInputPassword(e.target.value) }
             }/>
             <button type="submit" onClick={() => {user.connectFunction(inputUsername, inputPassword).then(() => window.location.reload());}}>
