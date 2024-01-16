@@ -1,7 +1,7 @@
 import {authorisationCheck} from "../userFunctions";
-import {redirect, useLoaderData, useNavigate} from "react-router";
+import {redirect, useLoaderData} from "react-router";
 import CreateProjectForm from "../Components/CreateProjectPage/CreateProjectForm";
-import {getProjectById, requestProjectDeletion, sendProjectData, validateGroupTag} from "../projectFunctions";
+import {getProjectById, sendProjectData, validateGroupTag} from "../projectFunctions";
 
 export async function loader({params}) {
     const checkIfAuthorised = await authorisationCheck();

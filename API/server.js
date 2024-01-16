@@ -213,8 +213,23 @@ app.get("/githubdata", async (req, res) => {
     }
 });
 
+app.post("/teacher", async (req, res)=>{
+    console.log("Tentative d'ajout de professeur reçue");
+    const {username, password, git_token, first_name, surname} = req.body;
+    try{
+        await addTeacher(username, password, git_token, first_name, surname);
+        const message = `Professeur ${first_name ? first_name + " " : ""} ${surname ? surname + " " : ""}au nom d'utilisateur "${username}" ajouté.`;
+        console.log(message);
+        res.status(200).send(message);
+    }catch (e) {
+        const message = `Erreur lors de l'ajout d'un professeur: ${e}`;
+        console.log(message);
+        res.status(500).send(message);
+    }
+});
+
 app.post("/repository", async (req, res) => {
-    console.log("Tentative d'ajout de repository")
+    console.log("Tentative d'ajout de repository");
     const gitHubUsers = req.body; //array
     const {url} = req.query;
 
@@ -460,11 +475,13 @@ function addTeacher(teacherUsername, password, gitToken, teacherFirstName, teach
             const message = "Invalid teacher data, please provide at least a username, password and git token";
             console.log(message);
             reject(message);
+            return;
         }
         if (!gitToken.startsWith("ghp_")) {
             const message = `${gitToken} does not look like a GitHub token.`;
             console.log(message);
             reject(message);
+            return;
         }
         const hashedPassword = await hashPassword(password);
         const sqlInsertTeacher = `INSERT INTO Teacher(
@@ -594,7 +611,6 @@ function initializeDatabase() {
         });
     });
 }
-
 
 //GITHUB API
 async function canCreateRepo(organizationName, githubToken) {
@@ -738,17 +754,6 @@ async function uniqueUrl() {
 }
 
 initializeDatabase();
-
-//Ajouter un professeur : remplacer les entrées ci dessous avec, respectivement :
-//    le nom d'utilisateur à utiliser sur le site
-//    le mot de passe à utiliser sur le site
-//    le token GitHub à associer à cet utilisateur (à générer sur le site de GitHub).
-//Données facultatives à ajouter à la fin:
-//    le prénom du professeur.
-//    le nom de famille du professeur.
-// addTeacher("TeacherTest", "mot de passe", "git-token", null, null).then((resolve)=>{
-//      console.log(resolve);
-//  }, (reject)=> console.log(`Error: ${reject}`));
 
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);

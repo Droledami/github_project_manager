@@ -19,7 +19,7 @@ export default function FeedbackForm({props}){
     }
 
     return(
-        <div className="feedback-form">
+        <div className="fixed-window">
             <h1>{titleMessage()}</h1>
             <p>
                 {feedbackMessage}
