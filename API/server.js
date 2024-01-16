@@ -126,17 +126,17 @@ app.post('/project', async (req, res) => {
     console.log(req.body);
     const tokens = req.body.tokens;
     const projectToAdd = req.body.project_data;
-    const isAuthorised = await authorisationCheck(tokens.teacher_id, tokens.token, tokens.refresh_token);
-    if (!isAuthorised) {
-        res.sendStatus(401); //Unauthorised
-        return;
-    }
-    const organizationExists = await checkIfOrganizationExists(projectToAdd.organization);
-    if (!organizationExists) {
-        res.sendStatus(406); //Not acceptable
-        return;
-    }
     try {
+        const isAuthorised = await authorisationCheck(tokens.teacher_id, tokens.token, tokens.refresh_token);
+        if (!isAuthorised) {
+            res.sendStatus(401); //Unauthorised
+            return;
+        }
+        const organizationExists = await checkIfOrganizationExists(projectToAdd.organization);
+        if (!organizationExists) {
+            res.sendStatus(406); //Not acceptable
+            return;
+        }
         const url = await uniqueUrl();
         await addProject(
             projectToAdd.name, projectToAdd.description, projectToAdd.organization, parseInt(projectToAdd.collaborators_min),
@@ -154,16 +154,16 @@ app.put('/project', async (req, res) => {
     const tokens = req.body.tokens;
     const isAuthorised = await authorisationCheck(tokens.teacher_id, tokens.token, tokens.refresh_token);
     const newProjectData = req.body.project_data;
-    if (!isAuthorised) {
-        res.sendStatus(401);
-        return;
-    }
-    const organizationExists = await checkIfOrganizationExists(newProjectData.organization);
-    if (!organizationExists) {
-        res.sendStatus(406); //Not acceptable
-        return;
-    }
     try {
+        if (!isAuthorised) {
+            res.sendStatus(401);
+            return;
+        }
+        const organizationExists = await checkIfOrganizationExists(newProjectData.organization);
+        if (!organizationExists) {
+            res.sendStatus(406); //Not acceptable
+            return;
+        }
         await editProject(newProjectData.name, newProjectData.description, newProjectData.organization, newProjectData.collaborators_min,
             newProjectData.collaborators_max, newProjectData.group_tag, newProjectData.project_id);
         res.sendStatus(200);
@@ -178,12 +178,12 @@ app.delete('/project', async (req, res) => {
     console.log(req.body);
     const tokens = req.body.tokens;
     const isAuthorised = await authorisationCheck(tokens.teacher_id, tokens.token, tokens.refresh_token);
-    if (!isAuthorised) {
-        res.sendStatus(401);
-        return;
-    }
-    const projectIdToDelete = req.body.project_id;
     try {
+        if (!isAuthorised) {
+            res.sendStatus(401);
+            return;
+        }
+        const projectIdToDelete = req.body.project_id;
         const response = await deleteProject(projectIdToDelete);
         console.log(response);
         res.sendStatus(200);
@@ -213,15 +213,15 @@ app.get("/githubdata", async (req, res) => {
     }
 });
 
-app.post("/teacher", async (req, res)=>{
+app.post("/teacher", async (req, res) => {
     console.log("Tentative d'ajout de professeur reçue");
     const {username, password, git_token, first_name, surname} = req.body;
-    try{
+    try {
         await addTeacher(username, password, git_token, first_name, surname);
         const message = `Professeur ${first_name ? first_name + " " : ""} ${surname ? surname + " " : ""}au nom d'utilisateur "${username}" ajouté.`;
         console.log(message);
         res.status(200).send(message);
-    }catch (e) {
+    } catch (e) {
         const message = `Erreur lors de l'ajout d'un professeur: ${e}`;
         console.log(message);
         res.status(500).send(message);
@@ -233,10 +233,16 @@ app.post("/repository", async (req, res) => {
     const gitHubUsers = req.body; //array
     const {url} = req.query;
 
-    const project = await getProjectWithUrl(url);
-    const projectCreatorGitToken = await getTeacherGitTokenById(project.TeacherId);
+    let project, projectCreatorGitToken, fetchRepos;
+    try {
+        project = await getProjectWithUrl(url);
+        projectCreatorGitToken = await getTeacherGitTokenById(project.TeacherId);
 
-    const fetchRepos = await getReposFromOrg(project.Organization, projectCreatorGitToken);
+        fetchRepos = await getReposFromOrg(project.Organization, projectCreatorGitToken);
+    } catch (e) {
+        res.status(400).send({reason: "wrong_format",error: "Unresolved body"});
+    }
+
     const orgRepos = fetchRepos.data;
 
     //Check if there is still room for another repository in the user's plan
@@ -314,7 +320,7 @@ function createRepositoryName(taggedGroup, repositoryNumber) {
     const repositoryNumberOfDigits = `${repositoryNumber}`.length;
     const numberOfZeros = numberOfX - repositoryNumberOfDigits;
     if (numberOfZeros < 0) {
-        throw Error(`group Number overflowed. Max: ${numberOfX}`);
+        throw Error(`group Number overflowed. Max: ${numberOfX}. Can't create any new group.`);
     }
     let numberStr = ""
     for (let i = 0; i < numberOfZeros; i++) {
