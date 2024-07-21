@@ -9,6 +9,7 @@ import CreateProjectPage, {
 import CreateRepositoryPage, {
     loader as createRepositoryLoader,
 } from "./Pages/CreateRepositoryPage";
+import RepositoriesPage, {loader as repositoriesPageLoader} from "./Pages/RepositoriesPage";
 
 const router = createBrowserRouter(
     [
@@ -38,6 +39,11 @@ const router = createBrowserRouter(
             path: "/repository/:url",
             element: <CreateRepositoryPage/>,
             loader: createRepositoryLoader,
+        },
+        {
+            path: "/repositories/:id",
+            element: <RepositoriesPage/>,
+            loader: repositoriesPageLoader,
         },
     ]
 );

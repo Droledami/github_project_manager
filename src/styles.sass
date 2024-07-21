@@ -18,9 +18,11 @@
   box-shadow: 3px 3px 0 colors.$primary-tone-3
   border-radius: 15px
   margin: 5px
+
   &:active
     box-shadow: none
     translate: 3px 3px
+
   &:hover
     cursor: pointer
 
@@ -43,12 +45,25 @@ button
   font-family: "Segoe UI Black", sans-serif
   color: colors.$on-primary-tone-3
 
-.new-button
+button.new-button
   @extend %base-button
   border: 2px solid colors.$on-primary-tone-2
   background-color: colors.$primary-tone-1
   position: fixed
   bottom: 5%
+  right: 5%
+  font-size: 24px
+  font-family: "Arial", serif
+  height: fit-content
+  margin: 20px
+  box-shadow: 5px 5px 0 black
+
+button.show-clone-options
+  @extend %base-button
+  border: 2px solid colors.$on-primary-tone-2
+  background-color: colors.$primary-tone-1
+  position: fixed
+  top: 5%
   right: 5%
   font-size: 24px
   font-family: "Arial", serif
@@ -65,6 +80,7 @@ div.project-area-row
   margin: 0 0 2% 0
   padding: 10px
   border-radius: 15px
+
   &:last-child
     margin: 0
 
@@ -123,10 +139,36 @@ textarea
   margin: .5%
   width: 100%
 
-p.tooltip
+p.tooltip-bottom
   font-size: 10px
   margin: 0
   padding: 0 0 0 2%
+
+p.tooltip-top
+  font-size: 10px
+  margin: 0
+  padding: 2% 0 0 2%
+
+.text-negative
+  color: colors.$negative
+
+.text-positive
+  color: colors.$positive
+
+div.preview-area
+  margin: 1% 5%
+  background-color: colors.$primary-tone-2
+  border-radius: 10px
+  border: solid 3px colors.$on-primary-tone-1
+
+p.preview
+  margin: 0 4%
+  padding: 0 0 2% 0
+
+input.preview
+  display: inline
+  padding: 2px
+  width: fit-content
 
 p.input-label
   margin: 0 .5%
@@ -172,31 +214,38 @@ div.card
   border-radius: 15px
   margin: 2% auto
   padding: 1.5% 3%
+
   > .card-header
     display: flex
     flex-direction: row
+
     *
       &:nth-child(1)
         flex: 1 auto
         font-weight: bold
+
       &:nth-child(2)
         flex: 20 auto
         font-style: italic
+
       &:nth-child(3)
         flex: 1
         margin-right: 2%
+
   > .card-body
     display: flex
     flex-direction: row
     justify-content: left
     background-color: colors.$primary-tone-1
     border-radius: 15px
+
     img
       margin: 1% 0 2.5% 1%
       min-width: 100px
       border-radius: 50%
       border: 3px solid colors.$on-primary-tone-1
       box-shadow: 3px 3px 5px colors.$primary-tone-3
+
     p
       margin: 2%
 
@@ -215,3 +264,20 @@ div.fixed-window
 
 div.create-group
   text-align: center
+
+div.repository-area
+  border-radius: 15px
+  border: colors.$on-primary-tone-3 solid 3px
+  padding: 2%
+  background-color: colors.$primary-tone-3
+  > div
+    &:nth-child(1)
+      background-color: colors.$primary-tone-1
+      color: colors.$on-primary-tone-1
+
+div.git-url
+  background-color: colors.$primary-tone-1
+  margin: 10px 0 2px
+  border-radius: 15px
+  padding: 5px 20px
+  border: colors.$on-primary-tone-2 solid 2px

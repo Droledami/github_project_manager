@@ -81,8 +81,10 @@ async function authorisationCheck(teacher_id, token, refresh_token) {
 }
 
 app.get('/projects', async (req, res) => {
+    console.log("Requesting all projects...")
+    const teacherId = req.query.teacherId;
     try {
-        const projects = await getAllProjects();
+        const projects = await getAllProjects(teacherId);
         res.status(200).send(projects);
     } catch (e) {
         res.status(500).send("Could not load projects");
@@ -90,6 +92,7 @@ app.get('/projects', async (req, res) => {
 });
 
 app.get('/project', async (req, res) => {
+    console.log("Requesting a specific project...");
     const projectFetchingMethod = getProjectFetchingMethod(req.query);
     let projectIdentifier;
     try {
@@ -97,7 +100,8 @@ app.get('/project', async (req, res) => {
         switch (projectFetchingMethod) {
             case "id":
                 projectIdentifier = req.query.id;
-                project = await getProjectWithId(projectIdentifier);
+                const teacherId = req.query.teacherId;
+                project = await getProjectWithId(projectIdentifier, teacherId);
                 break;
             case "url":
                 projectIdentifier = req.query.url;
@@ -213,6 +217,30 @@ app.get("/githubdata", async (req, res) => {
     }
 });
 
+app.get("/organizations", async (req, res) => {
+    console.log("Demande des organisations disponibles");
+    const teacherId = req.query.teacherId;
+
+    let projectCreatorGitToken;
+    try {
+        projectCreatorGitToken = await getTeacherGitTokenById(teacherId);
+    } catch (e) {
+        res.status(400).send({reason: "wrong_format", error: "Unresolved body"});
+    }
+
+    let orgs = [];
+    try {
+        const response = await getOrganizations(projectCreatorGitToken);
+        for (const orgsData of response.data) {
+            orgs.push(orgsData.login);
+        }
+        console.log(orgs);
+        res.status(200).send({organizations: orgs});
+    } catch (e) {
+        res.status(404).send({error: "Could not complete request"});
+    }
+});
+
 app.post("/teacher", async (req, res) => {
     console.log("Tentative d'ajout de professeur reçue");
     const {username, password, git_token, first_name, surname} = req.body;
@@ -240,7 +268,7 @@ app.post("/repository", async (req, res) => {
 
         fetchRepos = await getReposFromOrg(project.Organization, projectCreatorGitToken);
     } catch (e) {
-        res.status(400).send({reason: "wrong_format",error: "Unresolved body"});
+        res.status(400).send({reason: "wrong_format", error: "Unresolved body"});
     }
 
     const orgRepos = fetchRepos.data;
@@ -363,6 +391,48 @@ async function verifyRepositoryMembers(gitHubUsers) {
     }
 }
 
+app.get("/repositories", async (req, res) => {
+    const projectId = req.query.id;
+    const teacherId = req.query.teacherId;
+    const projectCreatorGitToken = await getTeacherGitTokenById(teacherId);
+    const projectOrg = await getProjectOrg(projectId, teacherId);
+    const project = await getProjectWithId(projectId, teacherId);
+
+    let repos = []
+    try {
+        const response = await getReposFromOrg(projectOrg, projectCreatorGitToken);
+        response.data.forEach((repo) => {
+            repos.push({
+                repository: {
+                    name: repo.name, clone_url: repo.clone_url, ssh_url: repo.ssh_url, collaborators: []
+                }
+            })
+        })
+        for (const repoItem of repos) {
+            const collaborators = await getRepositoryCollaborators(projectOrg, repoItem.repository.name, projectCreatorGitToken)
+            const collaboratorsUsernames = [];
+            collaborators.data.forEach((collaborator) => {
+                collaboratorsUsernames.push(collaborator.login);
+            });
+            for (const collabUsername of collaboratorsUsernames) {
+                const response = await getGithubUser(collabUsername);
+                const collaboratorData = response.data;
+                repoItem.repository.collaborators.push({
+                    git_hub_username: collaboratorData.login,
+                    name: collaboratorData.name,
+                    bio: collaboratorData.bio,
+                    avatar_url: collaboratorData.avatar_url
+                })
+            }
+        }
+        res.status(200).send({project_name: project.Name,repositories: repos});
+    } catch (e) {
+        console.log(e);
+        res.status(500).send({error:`Could not complete request for repositories data.`});
+    }
+
+});
+
 //DATABASE
 let database = new sqlite3.Database("./database/gestion_projet_github.db", (err) => {
     if (err) {
@@ -372,14 +442,27 @@ let database = new sqlite3.Database("./database/gestion_projet_github.db", (err)
     }
 });
 
-function getAllProjects() {
+function getAllProjects(teacherId) {
     return new Promise((resolve, reject) => {
-        const sqlGetAllProjects = `SELECT * FROM Project;`;
-        database.all(sqlGetAllProjects, (err, rows) => {
+        const sqlGetAllProjects = `SELECT * FROM Project WHERE TeacherId = ?;`;
+        database.all(sqlGetAllProjects, teacherId, (err, rows) => {
             if (err) reject(`Error getting projects from the database: ${err}`);
             if (rows.length <= 0) reject(`Error getting projects from the database: table is empty`);
             resolve(rows);
         });
+    });
+}
+
+getProjectOrg(1, 4)
+
+function getProjectOrg(projectId, teacherId) {
+    return new Promise((resolve, reject) => {
+        const sqlGetProjectOrg = `SELECT Organization FROM Project WHERE ProjectId = ? AND TeacherId = ?;`;
+        database.get(sqlGetProjectOrg, [projectId, teacherId], (err, row) => {
+            if (err) reject(`Error when trying to get organization of project Id ${projectId}: ${err}.`);
+            if (!row) reject(`No rows found for project Id ${projectId}.`);
+            resolve(row.Organization);
+        })
     });
 }
 
@@ -394,10 +477,10 @@ function getProjectWithUrl(projectUrl) {
     });
 }
 
-function getProjectWithId(projectId) {
+function getProjectWithId(projectId, teacherId) {
     return new Promise((resolve, reject) => {
-        const sqlGetProjectWithId = `SELECT * FROM Project WHERE ProjectId = ?;`;
-        database.get(sqlGetProjectWithId, projectId, (err, row) => {
+        const sqlGetProjectWithId = `SELECT * FROM Project WHERE ProjectId = ? AND TeacherId = ?;`;
+        database.get(sqlGetProjectWithId, [projectId, teacherId], (err, row) => {
             if (err) reject(`Error getting project with id ${projectId} from the database: ${err}`);
             if (!row) reject(`Error getting project from the database: no rows found for id ${projectId}`);
             resolve(row);
@@ -653,9 +736,11 @@ async function checkIfOrganizationExists(organizationName) {
 async function getGithubUser(username) {
     const octokit = new Octokit();
     try {
-        return await octokit.rest.users.getByUsername({
+        const response = await octokit.rest.users.getByUsername({
             username: username,
         });
+        console.log(response);
+        return response;
     } catch (error) {
         throw error;
     }
@@ -667,11 +752,32 @@ async function getReposFromOrg(organization, gitHubToken) {
     });
 
     try {
-        return await octokit.rest.repos.listForOrg(
+        const response = await octokit.rest.repos.listForOrg(
             {org: organization}
         );
+        console.log(response);
+        return response;
     } catch (e) {
         console.log(e);
+    }
+}
+
+//token_for_tests
+
+async function getRepositoryCollaborators(organization, repositoryName, gitToken) {
+    const octokit = new Octokit({
+        auth: gitToken
+    });
+
+    try {
+        const response = await octokit.rest.repos.listCollaborators({
+            owner: organization,
+            repo: repositoryName
+        })
+        console.log(response);
+        return response;
+    } catch (e) {
+        console.log(`Error when trying to get collaborators for ${organization}/${repositoryName}.`);
     }
 }
 
@@ -718,6 +824,18 @@ async function addCollaboratorToRepository(organizationName, repositoryName, git
             username: gitHubUserToAdd,
             permission: "maintain"
         });
+    } catch (e) {
+        console.log(e);
+    }
+}
+
+async function getOrganizations(gitHubToken) {
+    const octokit = new Octokit({
+        auth: gitHubToken
+    });
+
+    try {
+        return await octokit.rest.orgs.listForAuthenticatedUser();
     } catch (e) {
         console.log(e);
     }

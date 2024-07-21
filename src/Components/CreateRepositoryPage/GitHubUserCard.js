@@ -6,6 +6,8 @@ export default function GitHubUserCard({props}) {
     const name = props.member.name;
     const bio = props.member.bio;
 
+    const readOnly = props.readOnly;
+
     const members = useMembers();
 
     return (
@@ -17,10 +19,10 @@ export default function GitHubUserCard({props}) {
                 <div>
                     {name}
                 </div>
-                <button className="negative" onClick={() => {
+                {!readOnly && <button className="negative" onClick={() => {
                     members.deleteMember(displayedMember);
                 }}>Supprimer
-                </button>
+                </button>}
             </div>
             <div className="card-body">
                 <img src={avatarUrl} alt={`Profile picture of ${displayedMember}`} height={100} width={100}/>

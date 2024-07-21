@@ -31,8 +31,34 @@ export function validateGroupTag(groupTag){
     return result
 }
 
+export let repositoryNameIsValid = false;
+
+export function createRepositoryNamePreview(taggedGroup, previewNumber) {
+    const regex = /.*\[(X+)].*/
+    const parts = taggedGroup.match(regex);
+    if(!parts || parts.length !== 2){
+        repositoryNameIsValid = false;
+        return taggedGroup;
+    }
+    const numberOfX = parts[1].length;
+    const repositoryNumberOfDigits = `${previewNumber}`.length;
+    const numberOfZeros = numberOfX - repositoryNumberOfDigits;
+    if (numberOfZeros < 0) {
+        repositoryNameIsValid = false;
+        return `${taggedGroup}. Pas assez de X pour ce numéro de groupe`
+    }
+    let numberStr = ""
+    for (let i = 0; i < numberOfZeros; i++) {
+        numberStr += "0";
+    }
+    numberStr += `${previewNumber}`;
+    repositoryNameIsValid = true;
+    return taggedGroup.replace(`[${parts[1]}]`, numberStr);
+}
+
 export async function getAllProjects(){
-    const response = await fetch('http://localhost:8080/projects');
+    const sessionData = JSON.parse(localStorage.getItem("token"));
+    const response = await fetch(`http://localhost:8080/projects?teacherId=${sessionData.teacher_id}`);
     if(response.status === 200){
         return await response.json();
     }else{
@@ -41,7 +67,8 @@ export async function getAllProjects(){
 }
 
 export async function getProjectById(projectId){
-    const response = await fetch(`http://localhost:8080/project?id=${projectId}`);
+    const sessionData = JSON.parse(localStorage.getItem("token"));
+    const response = await fetch(`http://localhost:8080/project?id=${projectId}&teacherId=${sessionData.teacher_id}`);
     if(response.status === 200){
         return await response.json();
     }else{
@@ -51,6 +78,16 @@ export async function getProjectById(projectId){
 
 export async function getProjectByUrl(projectUrl){
     const response = await fetch(`http://localhost:8080/project?url=${projectUrl}`);
+    if(response.status === 200){
+        return await response.json();
+    }else{
+        return null;
+    }
+}
+
+export async function getProjectRepositoryData(projectId){
+    const sessionData = JSON.parse(localStorage.getItem("token"));
+    const response = await fetch(`http://localhost:8080/repositories?id=${projectId}&teacherId=${sessionData.teacher_id}`);
     if(response.status === 200){
         return await response.json();
     }else{

@@ -8,6 +8,6 @@ export default function MembersList({membersList}) {
         </div>
     }
     return membersList.map((member) =>
-        <GitHubUserCard props={{member}}/>
+        <GitHubUserCard props={{member, readOnly:false}}/>
     )
 }

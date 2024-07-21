@@ -1,7 +1,8 @@
 import {authorisationCheck} from "../userFunctions";
-import {redirect, useLoaderData} from "react-router";
+import {redirect, useLoaderData, useNavigate, useParams} from "react-router";
 import CreateProjectForm from "../Components/CreateProjectPage/CreateProjectForm";
 import {getProjectById, sendProjectData, validateGroupTag} from "../projectFunctions";
+import {useState} from "react";
 
 export async function loader({params}) {
     const checkIfAuthorised = await authorisationCheck();
@@ -49,13 +50,21 @@ export async function action({request, params}) {
 export default function CreateProjectPage() {
 
     const {project} = useLoaderData(); //!can be null.
+    const navigate = useNavigate();
+    const [isLoading, setIsLoading] = useState(false);
 
     return (
         <>
             <h1 className="title">
                 {project === null ? "Nouveau projet" : `Modifier le projet ${project.Name}`}
             </h1>
-            <CreateProjectForm project={project}/>
+            <div className="centered-list">
+                {project && <button onClick={() => {
+                    setIsLoading(true);
+                    navigate(`/repositories/${project.ProjectId}`)
+                }}>{isLoading? "Chargement des repositories...": "Repositories existants"}</button>}
+                <CreateProjectForm project={project}/>
+            </div>
         </>
     );
 }

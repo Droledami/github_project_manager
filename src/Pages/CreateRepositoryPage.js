@@ -54,7 +54,7 @@ export default function CreateRepositoryPage() {
             </h1>
             {formState.status !== "valid" && <div className="centered-list">
                 <div className="create-group">
-                    <p className="tooltip">Créer un groupe pour le projet :</p>
+                    <p className="tooltip-bottom">Créer un groupe pour le projet :</p>
                     <div className="project-title">
                         {project.Name}
                     </div>
